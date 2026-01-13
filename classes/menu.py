@@ -8,9 +8,9 @@ from classes.button import Button
 import classes.constants as c
 from classes.draw_menu import Draw_Menu
 from classes.textinput import TextInput 
-import pygame
-import pygame_widgets
-from pygame_widgets.slider import Slider
+import pygame  # type: ignore
+import pygame_widgets # type: ignore
+from pygame_widgets.slider import Slider # type: ignore
 
 class Menu:
     def __init__(self, screen, get_font, research_icon):
@@ -39,10 +39,9 @@ class Menu:
 
         buttons = [
             Button(None, "Play", (c.SCREEN_WIDTH // 2, 400), self.get_font(64), "black", "darkgrey"),
-            Button(None, "Load Data", (c.SCREEN_WIDTH // 2, 500), self.get_font(64), "black", "darkgrey"),
-            Button(None, "Settings", (c.SCREEN_WIDTH // 2, 600), self.get_font(64), "black", "darkgrey"),
-            Button(None, "Achievements", (c.SCREEN_WIDTH // 2, 700), self.get_font(64), "black", "darkgrey"),
-            Button(None, "Quit", (c.SCREEN_WIDTH // 2, 800), self.get_font(64), "darkred", "red")
+            Button(None, "Settings", (c.SCREEN_WIDTH // 2, 500), self.get_font(64), "black", "darkgrey"),
+            Button(None, "Achievements", (c.SCREEN_WIDTH // 2, 600), self.get_font(64), "black", "darkgrey"),
+            Button(None, "Quit", (c.SCREEN_WIDTH // 2, 700), self.get_font(64), "darkred", "red")
         ]
 
         for button in buttons:
@@ -120,25 +119,6 @@ class Menu:
         self.screen.blit(title.title_text, title.title_text_rect)
 
         return buttons
-    
-    def draw_load_data(self, mouse_pos):
-        self.screen.fill("black")
-
-        title = Draw_Menu(200, 300, "Load Data", "Select your profile", self.get_font(86), self.get_font(64), "white")
-
-        PROFILE_ONE = Button(None, "John Chemistry", (c.SCREEN_WIDTH // 2, 500), self.get_font(42), "white", "grey")
-        PROFILE_TWO = Button(None, "Bob Physics", (c.SCREEN_WIDTH // 2, 600), self.get_font(42), "white", "grey")
-        BACK_BUTTON = Button(None, "<", (200, 200), self.get_font(200), "darkred", "red")
-
-        self.screen.blit(title.title_text, title.title_text_rect)
-        self.screen.blit(title.desc_text, title.desc_text_rect)
-        
-        buttons = [PROFILE_ONE, PROFILE_TWO, BACK_BUTTON]
-        for button in buttons:
-            button.update(self.screen)
-            button.changeColor(mouse_pos)
-
-        return buttons
 
     def draw_achievements(self, mouse_pos):
         self.screen.fill("black")
@@ -198,29 +178,14 @@ class Menu:
         pygame.draw.rect(self.screen, "white", (c.SCREEN_WIDTH // 8, 300, 300, 680), 0, border_radius=20)
         pygame.draw.rect(self.screen, "white", (c.SCREEN_WIDTH // 8 + 350, 300, 1080, 680), 0, border_radius=20)
 
-        PROFILES_BUTTON = Button(None, "Profiles", (c.SCREEN_WIDTH // 8 + 150, 350), self.get_font(48), "black", "#383838")
         AUDIO_BUTTON = Button(None, "Audio", (c.SCREEN_WIDTH // 8 + 150, 450), self.get_font(48), "black", "#383838")
-        CLEAR_DATA_BUTTON = Button(None, "Clear All Data", (c.SCREEN_WIDTH // 8 + 150, 550), self.get_font(38), "red", "darkred")
-
-        
-
         self.screen.blit(title.title_text, title.title_text_rect)
 
         BACK_BUTTON = Button(None, "<", (200, 200), self.get_font(200), "darkred", "red")
         
-        buttons = [BACK_BUTTON, PROFILES_BUTTON, AUDIO_BUTTON, CLEAR_DATA_BUTTON]
+        buttons = [BACK_BUTTON, AUDIO_BUTTON]
         
-        if settings_state == "Profiles":
-            PROFILE_ONE = Button(None, "John Chemistry", (c.SCREEN_WIDTH // 8 + 650, 420), self.get_font(36), "black", "#383838")
-            PROFILE_TWO = Button(None, "Bob Physics", (c.SCREEN_WIDTH // 8 + 650, 520), self.get_font(36), "black", "#383838")
-            buttons.append(PROFILE_ONE)
-            buttons.append(PROFILE_TWO)
-
-            profiles_title = self.get_font(48).render("Profiles", True, "black")
-            profiles_title_rect = profiles_title.get_rect(center=(c.SCREEN_WIDTH // 8 + 650, 350))
-
-            self.screen.blit(profiles_title, profiles_title_rect)
-        elif settings_state == "Audio":
+        if settings_state == "Audio":
             main_volume_title = self.get_font(48).render("Main Volume", True, "black")
             main_volume_title_rect = main_volume_title.get_rect(center=(c.SCREEN_WIDTH // 8 + 550, 330))
 
@@ -239,17 +204,6 @@ class Menu:
             pygame_widgets.update(events)
             self.screen.blit(main_volume_output, main_volume_output_rect)
             self.screen.blit(main_volume_title, main_volume_title_rect)
-        elif settings_state == "Clear All Data":
-            yes = Button(None, "Yes", (c.SCREEN_WIDTH // 8 + 550, 600), self.get_font(42), "black", "grey")
-            no = Button(None, "No", (c.SCREEN_WIDTH // 8 + 650, 600), self.get_font(42), "black", "grey")
-            
-            buttons.append(yes)
-            buttons.append(no)
-
-            warning_text = self.get_font(42).render("This will clear all progress on this profile", True, "red")
-            warning_text_rect = warning_text.get_rect(center=(1135, 500))
-
-            self.screen.blit(warning_text, warning_text_rect)
 
         for button in buttons:
             button.changeColor(mouse_pos)

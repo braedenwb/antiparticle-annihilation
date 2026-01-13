@@ -1,6 +1,6 @@
 import asyncio
 import classes.constants as c
-import pygame
+import pygame # type: ignore
 
 from classes.antiparticle import Antiparticle
 from classes.button import Button
@@ -9,19 +9,18 @@ from classes.game_error import GameError
 from classes.grid import Grid
 from classes.menu import Menu
 from classes.textinput import TextInput
-from data.antiparticle_data import ANTIPARTICLE_DATA
 from data.element_data import ELEMENT_DATA
 from data.tutorial_steps import TUTORIAL_STEPS
 
 pygame.init()
 
-screen = pygame.display.set_mode((c.SCREEN_WIDTH, c.SCREEN_HEIGHT), pygame.RESIZABLE)
+screen = pygame.display.set_mode((c.SCREEN_WIDTH, c.SCREEN_HEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Antiparticle Annihilation")
 
 tutorial_grid = Grid(c.SCREEN_WIDTH, c.SCREEN_HEIGHT, cols=24, rows=14)
 
 first_lane_waypoints = [
-    tutorial_grid.get_cell_center(3,0),
+    tutorial_grid.get_cell_center(3,0), # Returns format (x, y)
     tutorial_grid.get_cell_center(3,8),
     tutorial_grid.get_cell_center(5,8),
     tutorial_grid.get_cell_center(5,2),
@@ -93,6 +92,8 @@ neodymium_sprite = pygame.transform.scale(neodymium_sprite_large, (tutorial_grid
 
 #endregion
 
+pygame.display.set_icon(base_sprite)
+
 def get_font(size):
     return pygame.font.Font("assets/fonts/Orbitron-Medium.ttf", size)
 
@@ -127,8 +128,8 @@ class MainLoop:
 
         # Game state management variable
         # states: main_menu (default), difficulty_select, level_select, achievements & gameplay
-        self.state = "log_in"
-        self.settings_state = "Profiles" # state management variable for settings menu (Profiles, Audio, Clear All Data)
+        self.state = c.MAIN_MENU
+        self.settings_state = "Audio" # state management variable for settings menu (Profiles, Audio, Clear All Data)
         self.active_error = None
         self.error_start_time = None
 
@@ -148,11 +149,8 @@ class MainLoop:
         self.selected_element = None
         self.selected_element_button = None
         self.spawn_queue = []
-        self.spawn_interval = 0.5
 
         self.energy_amount = 20 # starting amount is 20 for tutorial level
-
-        self.wave_spawned = False
 
         self.clock = pygame.time.Clock()
         self.menu = Menu(
@@ -161,7 +159,7 @@ class MainLoop:
             research_icon
         )
 
-        self.grid = None
+        self.grid = tutorial_grid
 
         self.username_input = TextInput(
             c.SCREEN_WIDTH // 2 - 150,
@@ -201,21 +199,19 @@ class MainLoop:
             events = pygame.event.get()
 
             #region Handle menus rendering
-            if self.state == "main_menu":
+            if self.state == c.MAIN_MENU:
                 buttons = self.menu.draw_main_menu(mouse_pos, self.username_input.text)
-            elif self.state == "difficulty_select":
+            elif self.state == c.DIFFICULTY_SELECT:
                 buttons = self.menu.draw_difficulty_select(mouse_pos)
-            elif self.state == "level_select":
+            elif self.state == c.LEVEL_SELECT:
                 buttons = self.menu.draw_level_select(mouse_pos)
-            elif self.state == "load_data":
-                buttons = self.menu.draw_load_data(mouse_pos)
-            elif self.state == "settings":
+            elif self.state == c.SETTINGS:
                 buttons = self.menu.draw_settings(mouse_pos, self.settings_state, events)
-            elif self.state == "achievements":
+            elif self.state == c.ACHIEVEMENTS:
                 buttons = self.menu.draw_achievements(mouse_pos)
-            elif self.state == "log_in":
+            elif self.state == c.LOGIN:
                 buttons = self.menu.draw_log_in(mouse_pos, self.username_input, self.password_input)
-            elif self.state == "sign_up":
+            elif self.state == c.SIGNUP:
                 buttons = self.menu.draw_sign_up(mouse_pos, self.username_input, self.password_input)
             #endregion
 
@@ -227,7 +223,7 @@ class MainLoop:
                     self.error_start_time = None
 
             #region Gameplay
-            if self.state == "gameplay":
+            if self.state == c.GAMEPLAY:
 
                 ################################################################
                 # Beginning of Rendering
@@ -237,10 +233,7 @@ class MainLoop:
 
                 pygame.draw.lines(screen, "red", False, first_lane_waypoints)
 
-                self.grid = tutorial_grid
-
-                if self.grid:
-                    self.grid.draw(screen)
+                self.grid.draw(screen)
 
                 PANEL_X = self.grid.side_margin // 3
                 PANEL_Y = 25
@@ -510,7 +503,7 @@ class MainLoop:
                     self.running = False
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if self.state == "gameplay":
+                    if self.state == c.GAMEPLAY:
                         if hydrogen_select.checkForInput(mouse_pos):
                             self.deselect_all_elements()
                             self.selected_element_button = "hydrogen"
@@ -610,10 +603,10 @@ class MainLoop:
                         if run.checkForInput(mouse_pos):
                             self.spawn_wave()
 
-                    if self.state == "gameplay" and self.paused:
+                    if self.state == c.GAMEPLAY and self.paused:
                         if yes_button.checkForInput(mouse_pos):
                             self.paused = False
-                            self.state = "main_menu"
+                            self.state = c.MAIN_MENU
 
                             antiparticle_group.empty()
                             element_group.empty()
@@ -632,11 +625,11 @@ class MainLoop:
                         if button.checkForInput(mouse_pos): self.handle_button(button)
                 
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE and self.state == "gameplay":
+                    if event.key == pygame.K_ESCAPE and self.state == c.GAMEPLAY:
                         self.paused = not self.paused
 
 
-                if self.state == "log_in" or self.state == "sign_up":
+                if self.state == c.LOGIN or self.state == c.SIGNUP:
                     self.username_input.handle_event(event)
                     self.password_input.handle_event(event)  
             
@@ -681,7 +674,7 @@ class MainLoop:
             for i, (name, waypoints, health, speed) in enumerate(wave_data):
                 sprite = SPRITE_MAP[name]
                 self.spawn_queue.append((
-                    current_time + i * self.spawn_interval,
+                    current_time + i * 0.5, # 0.5 is time interval new enemies are spawned at
                     waypoints,
                     name,      
                     sprite
@@ -694,7 +687,6 @@ class MainLoop:
     def deselect_all_elements(self):
         for element in element_group:
             element.selected = False
-        self.selected_element_on_field = None
 
 
     def handle_button(self, button):
@@ -703,56 +695,47 @@ class MainLoop:
             according to what
             the game state is currently
         """
-        if self.state == "main_menu":
+        if self.state == c.MAIN_MENU:
             if button.text_input == "Play":
-                self.state = "gameplay"
-            elif button.text_input == "Load Data":
-                self.state = "load_data"
+                self.state = c.GAMEPLAY
             elif button.text_input == "Settings":
-                self.state = "settings"
+                self.state = c.SETTINGS
             elif button.text_input == "Achievements":
-                self.state = "achievements"
+                self.state = c.ACHIEVEMENTS
             elif button.text_input == "Quit":
                 self.running = False
-        elif self.state == "difficulty_select":
+        elif self.state == c.DIFFICULTY_SELECT:
             if button.text_input == "<":
-                self.state = "main_menu"
+                self.state = c.MAIN_MENU
             elif button.text_input in ["Beginner", "Intermediate", "Chemist"]:
-                self.state = "level_select"
-        elif self.state == "level_select":
+                self.state = c.LEVEL_SELECT
+        elif self.state == c.LEVEL_SELECT:
             if button.text_input == "<":
-                self.state = "main_menu"
+                self.state = c.MAIN_MENU
             elif button.text_input == "Tutorial":
-                self.state = "gameplay"
-        elif self.state == "load_data":
+                self.state = c.GAMEPLAY
+        elif self.state == c.SETTINGS:
             if button.text_input == "<":
-                self.state = "main_menu"
-            elif button.text_input == "John Chemistry":
-                self.state = "main_menu"
-            elif button.text_input == "Bob Physics":
-                self.state = "main_menu"
-        elif self.state == "settings":
-            if button.text_input == "<":
-                self.state = "main_menu"
+                self.state = c.MAIN_MENU
             elif button.text_input == "Profiles":
                 self.settings_state = "Profiles"
             elif button.text_input == "Audio":
                 self.settings_state = "Audio"
             elif button.text_input == "Clear All Data":
                 self.settings_state = "Clear All Data"
-        elif self.state == "achievements":
+        elif self.state == c.ACHIEVEMENTS:
             if button.text_input == "<":
-                self.state = "main_menu"
-        elif self.state == "log_in":
+                self.state = c.MAIN_MENU
+        elif self.state == c.LOGIN:
             if button.text_input == "Log In":
                 self.handle_login()
             elif button.text_input == "Sign Up":
-                self.state = "sign_up"
-        elif self.state == "sign_up":
+                self.state = c.SIGNUP
+        elif self.state == c.SIGNUP:
             if button.text_input == "Create Account":
                 self.handle_signup()
             elif button.text_input == "Back to Login":
-                self.state = "log_in"
+                self.state = c.LOGIN
 
     def handle_login(self):
         username = self.username_input.text
@@ -773,7 +756,7 @@ class MainLoop:
                 stored_username, stored_password = line.strip().split(",")
                 if username == stored_username:
                     if password == stored_password:
-                        self.state = "main_menu"
+                        self.state = c.MAIN_MENU
                         return
                     else:
                         self.active_error = GameError("Incorrect password")
@@ -795,4 +778,4 @@ class MainLoop:
         with open("accounts.txt", "a") as f:
             f.write(f"{username},{password}\n")
         
-        self.state = "log_in"
+        self.state = c.LOGIN

@@ -1,6 +1,6 @@
 # File to store all constants
 #
-# Every constants name should be fully capitilized to make them recognizable
+# Every constants name should be fully capitilized to make them distinct from other variables
 
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
@@ -15,3 +15,14 @@ PANEL_X = 30
 PANEL_Y = 500
 PANEL_W = 240
 PANEL_H = 260
+
+# States
+
+MAIN_MENU = "main_menu"
+GAMEPLAY = "gameplay"
+DIFFICULTY_SELECT = "difficulty_select"
+LEVEL_SELECT = "level_select"
+SETTINGS = "settings"
+ACHIEVEMENTS = "achievements"
+LOGIN = "log_in"
+SIGNUP = "sign_up"

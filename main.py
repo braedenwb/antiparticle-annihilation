@@ -1,5 +1,10 @@
+"""
+This file is for starting the game
+and starting asyncio for web assembly. 
+Prints out any errors to the console.
+"""
 import asyncio 
-import pygame 
+import pygame # type: ignore
 from game import MainLoop 
 
 async def main():
