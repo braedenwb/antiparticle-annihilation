@@ -127,7 +127,7 @@ class MainLoop:
 
         # Game state management variable
         # states: main_menu (default), difficulty_select, level_select, achievements & gameplay
-        self.state = "gameplay"
+        self.state = "log_in"
         self.settings_state = "Profiles" # state management variable for settings menu (Profiles, Audio, Clear All Data)
         self.active_error = None
         self.error_start_time = None
