@@ -14,31 +14,6 @@ from classes.textinput import TextInput
 from data.element_data import ELEMENT_DATA
 from data.tutorial_steps import TUTORIAL_STEPS
 
-
-# Load database and get Profiles table (users and passwords).
-
-DB_PATH = "/home/braeden/Documents/code/repo/Acagameics_Database.accdb"
-
-if not os.path.exists(DB_PATH):
-    raise FileNotFoundError(f"file not found")
-
-conn_string = f"DRIVER={{MDBTools}};DBQ={DB_PATH}"
-
-# TODO: Convert the database file into a .mdb file, then test this code.
-
-try:
-    conn = pyodbc.connect(conn_string)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM Profiles")
-    for row in cursor.fetchall():
-        print(row)
-    
-    cursor.close()
-    conn.close()
-except pyodbc.Error as error:
-    print(f"Error connecting to database: {error}")
-
 pygame.init()
 
 screen = pygame.display.set_mode((c.SCREEN_WIDTH, c.SCREEN_HEIGHT), pygame.FULLSCREEN)
@@ -123,6 +98,27 @@ pygame.display.set_icon(base_sprite)
 
 def get_font(size):
     return pygame.font.Font("assets/fonts/Orbitron-Medium.ttf", size)
+
+def load_database(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Database file not found")
+
+    conn_string = f"DRIVER={{MDBTools}};DBQ={path}"
+
+    # TODO: Convert the database file into a .mdb file, then test this code.
+
+    try:
+        conn = pyodbc.connect(conn_string)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM Profiles")
+        for row in cursor.fetchall():
+            print(row)
+        
+        cursor.close()
+        conn.close()
+    except pyodbc.Error as error:
+        print(f"Error connecting to database: {error}")
 
 def draw_centered_wrapped_text(surface, text, font, color, rect, line_height):
         """
