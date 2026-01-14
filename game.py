@@ -1,6 +1,5 @@
 import asyncio
 import classes.constants as c
-import pyodbc
 import pygame # type: ignore
 import os
 
@@ -99,27 +98,6 @@ pygame.display.set_icon(base_sprite)
 def get_font(size):
     return pygame.font.Font("assets/fonts/Orbitron-Medium.ttf", size)
 
-def load_database(path):
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Database file not found")
-
-    conn_string = f"DRIVER={{MDBTools}};DBQ={path}"
-
-    # TODO: Convert the database file into a .mdb file, then test this code.
-
-    try:
-        conn = pyodbc.connect(conn_string)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT * FROM Profiles")
-        for row in cursor.fetchall():
-            print(row)
-        
-        cursor.close()
-        conn.close()
-    except pyodbc.Error as error:
-        print(f"Error connecting to database: {error}")
-
 def draw_centered_wrapped_text(surface, text, font, color, rect, line_height):
         """
         Draws wrapped and horizontally centered text inside a rect,
@@ -213,6 +191,18 @@ class MainLoop:
         self.tutorial_prompt = "Welcome! Buy a hydrogen (H) and place it near the red line and start a wave."
         self.prompt_start_time = 0
 
+        self.PANEL_X = self.grid.side_margin // 3
+        self.PANEL_Y = 25
+
+        self.LINE_HEIGHT = 25
+
+        # Left side buy menu element icons:
+        self.hydrogen_select = Button(hydrogen_sprite_button, "", (self.grid.side_margin // 6, 75), get_font(32), "white", "grey")
+        self.oxygen_select   = Button(oxygen_sprite_button, "", (self.grid.side_margin // 6, 200), get_font(32), "white", "grey")
+        self.silicon_select  = Button(silicon_sprite_button, "", (self.grid.side_margin // 6, 350), get_font(32), "white", "grey")
+
+        self.upgrade_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
+
     async def run(self):
         while self.running:
             dt = self.clock.tick(c.FPS) / 1000 # delta time
@@ -258,11 +248,6 @@ class MainLoop:
 
                 self.grid.draw(screen)
 
-                PANEL_X = self.grid.side_margin // 3
-                PANEL_Y = 25
-
-                LINE_HEIGHT = 25
-
                 pygame.draw.rect(screen, "#445d68", (0, self.grid.grid_area_height, c.SCREEN_WIDTH, c.SCREEN_HEIGHT - self.grid.grid_area_height))
                 pygame.draw.rect(screen, "#2e3f46", (0, self.grid.grid_area_height, c.SCREEN_WIDTH, c.SCREEN_HEIGHT - self.grid.grid_area_height), 4)
                 pygame.draw.rect(screen, "#445d68", (0, 0, self.grid.side_margin, self.grid.grid_area_height))
@@ -276,10 +261,6 @@ class MainLoop:
                 screen.blit(research_text, (125, self.grid.grid_area_height + 125))
                 screen.blit(research_icon, (25, self.grid.grid_area_height + 120))
 
-                hydrogen_select = Button(hydrogen_sprite_button, "", (self.grid.side_margin // 6, 75), get_font(32), "white", "grey")
-                oxygen_select   = Button(oxygen_sprite_button, "", (self.grid.side_margin // 6, 200), get_font(32), "white", "grey")
-                silicon_select  = Button(silicon_sprite_button, "", (self.grid.side_margin // 6, 350), get_font(32), "white", "grey")
-
                 selected_element_obj = None
                 for element in element_group:
                     if getattr(element, "selected", False):
@@ -287,22 +268,21 @@ class MainLoop:
                         break
 
                 if selected_element_obj:
-                    text_rect = pygame.Rect(PANEL_X + 25, PANEL_Y + 160, 250, self.grid.grid_area_height - 180)
+                    text_rect = pygame.Rect(self.PANEL_X + 25, self.PANEL_Y + 160, 250, self.grid.grid_area_height - 180)
 
-                    pygame.draw.rect(screen, "#405761", (PANEL_X, PANEL_Y, 300, self.grid.grid_area_height - 50), border_radius=15)
-                    pygame.draw.rect(screen, "#2e3f46", (PANEL_X, PANEL_Y, 300, self.grid.grid_area_height - 50), 4, border_radius=15)
+                    pygame.draw.rect(screen, "#405761", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), border_radius=15)
+                    pygame.draw.rect(screen, "#2e3f46", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), 4, border_radius=15)
 
-                    upgrade_exit_button = Button(None, "X", (PANEL_X + 275, PANEL_Y + 25), get_font(28), "red", "darkred")
-                    upgrade_exit_button.changeColor(mouse_pos)
-                    upgrade_exit_button.update(screen)
+                    self.upgrade_exit_button.changeColor(mouse_pos)
+                    self.upgrade_exit_button.update(screen)
 
                     title_text = get_font(28).render(f"{selected_element_obj.name.capitalize()}", True, "white")
-                    title_text_rect = title_text.get_rect(center=(PANEL_X + 150, 45))
+                    title_text_rect = title_text.get_rect(center=(self.PANEL_X + 150, 45))
                     screen.blit(title_text, title_text_rect)
 
                     data = ELEMENT_DATA.get(selected_element_obj.name, {})
 
-                    upgrade_button = Button(None, f"Upgrade for {selected_element_obj.upgrade_cost}", (PANEL_X + 150, PANEL_Y + 90), get_font(26), "white", "grey")
+                    upgrade_button = Button(None, f"Upgrade for {selected_element_obj.upgrade_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
                     upgrade_button.changeColor(mouse_pos)
                     upgrade_button.update(screen)
 
@@ -342,31 +322,31 @@ class MainLoop:
                             get_font(24),
                             "white",
                             pygame.Rect(text_rect.left, y_offset, text_rect.width, 60),
-                            LINE_HEIGHT
+                            self.LINE_HEIGHT
                         )
                         y_offset += 40
 
                 elif self.selected_element_button is not None:
 
-                    pygame.draw.rect(screen, "#405761", (PANEL_X, PANEL_Y, 300, self.grid.grid_area_height - 50), border_radius=15)
-                    pygame.draw.rect(screen, "#2e3f46", (PANEL_X, PANEL_Y, 300, self.grid.grid_area_height - 50), 4, border_radius=15)
+                    pygame.draw.rect(screen, "#405761", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), border_radius=15)
+                    pygame.draw.rect(screen, "#2e3f46", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), 4, border_radius=15)
 
                     title_text = get_font(28).render(f"{self.selected_element_button.capitalize()}", True, "white")
-                    title_text_rect = title_text.get_rect(center=(PANEL_X + 150, 45))
+                    title_text_rect = title_text.get_rect(center=(self.PANEL_X + 150, 45))
                     screen.blit(title_text, title_text_rect)
 
                     data = ELEMENT_DATA.get(self.selected_element_button, {})
 
-                    buy_exit_button = Button(None, "X", (PANEL_X + 275, PANEL_Y + 25), get_font(28), "red", "darkred")
+                    buy_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
                     buy_exit_button.changeColor(mouse_pos)
                     buy_exit_button.update(screen)
 
                     buy_cost = data.get("buy_cost", 0)
-                    buy_button = Button(None, f"Buy for {buy_cost}", (PANEL_X + 150, PANEL_Y + 90), get_font(26), "white", "grey")
+                    buy_button = Button(None, f"Buy for {buy_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
                     buy_button.changeColor(mouse_pos)
                     buy_button.update(screen)
 
-                    text_rect = pygame.Rect(PANEL_X + 25, PANEL_Y + 160, 250, self.grid.grid_area_height - 200)
+                    text_rect = pygame.Rect(self.PANEL_X + 25, self.PANEL_Y + 160, 250, self.grid.grid_area_height - 200)
 
                     if data['damage_element'] == True:
                         info_lines = [
@@ -401,7 +381,7 @@ class MainLoop:
                             get_font(24),
                             "white",
                             pygame.Rect(text_rect.left, y_offset, text_rect.width, 60),
-                            LINE_HEIGHT
+                            self.LINE_HEIGHT
                         )
                         y_offset += 40
 
@@ -409,7 +389,7 @@ class MainLoop:
                     energy_tile_x, energy_tile_y = energy_tile_coordinate
                     screen.blit(energy_tile_sprite, (self.grid.get_cell_top_left_corner(energy_tile_x, energy_tile_y)))
 
-                for button in [hydrogen_select, oxygen_select, silicon_select]:
+                for button in [self.hydrogen_select, self.oxygen_select, self.silicon_select]:
                     button.update(screen)
 
                 base_x, base_y = self.grid.get_cell_top_left_corner(12, 3)
@@ -527,19 +507,19 @@ class MainLoop:
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if self.state == c.GAMEPLAY:
-                        if hydrogen_select.checkForInput(mouse_pos):
+                        if self.hydrogen_select.checkForInput(mouse_pos):
                             self.deselect_all_elements()
                             self.selected_element_button = "hydrogen"
                             self.selected_element = None
                             continue
 
-                        if oxygen_select.checkForInput(mouse_pos):
+                        if self.oxygen_select.checkForInput(mouse_pos):
                             self.deselect_all_elements()
                             self.selected_element_button = "oxygen"
                             self.selected_element = None
                             continue
 
-                        if silicon_select.checkForInput(mouse_pos):
+                        if self.silicon_select.checkForInput(mouse_pos):
                             self.deselect_all_elements()
                             self.selected_element_button = "silicon"
                             self.selected_element = None
@@ -562,7 +542,7 @@ class MainLoop:
                             continue
 
                         if selected_element_obj:
-                            if upgrade_exit_button.checkForInput(mouse_pos):
+                            if self.upgrade_exit_button.checkForInput(mouse_pos):
                                 self.deselect_all_elements()
                                 continue
 
