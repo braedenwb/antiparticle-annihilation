@@ -1,6 +1,8 @@
 import asyncio
 import classes.constants as c
+import pyodbc
 import pygame # type: ignore
+import os
 
 from classes.antiparticle import Antiparticle
 from classes.button import Button
@@ -11,6 +13,31 @@ from classes.menu import Menu
 from classes.textinput import TextInput
 from data.element_data import ELEMENT_DATA
 from data.tutorial_steps import TUTORIAL_STEPS
+
+
+# Load database and get Profiles table (users and passwords).
+
+DB_PATH = "/home/braeden/Documents/code/repo/Acagameics_Database.accdb"
+
+if not os.path.exists(DB_PATH):
+    raise FileNotFoundError(f"file not found")
+
+conn_string = f"DRIVER={{MDBTools}};DBQ={DB_PATH}"
+
+# TODO: Convert the database file into a .mdb file, then test this code.
+
+try:
+    conn = pyodbc.connect(conn_string)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM Profiles")
+    for row in cursor.fetchall():
+        print(row)
+    
+    cursor.close()
+    conn.close()
+except pyodbc.Error as error:
+    print(f"Error connecting to database: {error}")
 
 pygame.init()
 
