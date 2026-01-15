@@ -1,7 +1,7 @@
 import asyncio
 import classes.constants as c
 import pygame # type: ignore
-import os
+import sqlite3
 
 from classes.antiparticle import Antiparticle
 from classes.button import Button
@@ -126,6 +126,7 @@ def draw_centered_wrapped_text(surface, text, font, color, rect, line_height):
 class MainLoop:
     def __init__(self):
         self.running = True
+        self.load_database()
 
         # Game state management variable
         # states: main_menu (default), difficulty_select, level_select, achievements & gameplay
@@ -503,6 +504,7 @@ class MainLoop:
 
             for event in events:
                 if event.type == pygame.QUIT:
+                    print("closed")
                     self.running = False
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -631,7 +633,6 @@ class MainLoop:
                     if event.key == pygame.K_ESCAPE and self.state == c.GAMEPLAY:
                         self.paused = not self.paused
 
-
                 if self.state == c.LOGIN or self.state == c.SIGNUP:
                     self.username_input.handle_event(event)
                     self.password_input.handle_event(event)  
@@ -706,6 +707,7 @@ class MainLoop:
             elif button.text_input == "Achievements":
                 self.state = c.ACHIEVEMENTS
             elif button.text_input == "Quit":
+                self.connection
                 self.running = False
         elif self.state == c.DIFFICULTY_SELECT:
             if button.text_input == "<":
@@ -740,6 +742,25 @@ class MainLoop:
             elif button.text_input == "Back to Login":
                 self.state = c.LOGIN
 
+    def load_database(self):
+        connection = sqlite3.connect(c.DB_PATH)
+        cursor = connection.cursor()
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password TEXT NOT NULL
+            )          
+    ''')
+        
+        # cursor.execute("INSERT INTO profiles (username, password) VALUES (?, ?)", ("joe", "1353151"))
+        
+        # cursor.execute("SELECT username, password FROM profiles")
+        # print(cursor.fetchall())
+
+        connection.commit()
+        
     def handle_login(self):
         username = self.username_input.text
         password = self.password_input.text

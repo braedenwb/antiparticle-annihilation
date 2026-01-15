@@ -7,6 +7,8 @@ SCREEN_HEIGHT = 1080
 
 FPS = 60
 
+DB_PATH = "data/AcagameicsDatabase.db"
+
 # Game UI Size & Position constants
 UI_BOX_X = SCREEN_WIDTH // 36
 UI_BOX_Y = SCREEN_HEIGHT // 1.25
