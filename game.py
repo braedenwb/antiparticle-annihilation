@@ -130,7 +130,7 @@ class MainLoop:
 
         # Game state management variable
         # states: main_menu (default), difficulty_select, level_select, achievements & gameplay
-        self.state = c.MAIN_MENU
+        self.state = c.LOGIN
         self.settings_state = "Audio" # state management variable for settings menu (Profiles, Audio, Clear All Data)
         self.active_error = None
         self.error_start_time = None
@@ -199,19 +199,20 @@ class MainLoop:
 
         # Left side buy menu element icons:
         self.selected_element_obj = None
+        self.selected_element_obj_cost = 0
 
         self.hydrogen_select = Button(hydrogen_sprite_button, "", (self.grid.side_margin // 6, 75), get_font(32), "white", "grey")
         self.oxygen_select   = Button(oxygen_sprite_button, "", (self.grid.side_margin // 6, 200), get_font(32), "white", "grey")
         self.silicon_select  = Button(silicon_sprite_button, "", (self.grid.side_margin // 6, 350), get_font(32), "white", "grey")
 
         self.upgrade_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
-        self.upgrade_button = Button(None, f"Upgrade for {self.selected_element_obj.upgrade_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
+        self.upgrade_button = Button(None, f"Upgrade for {self.selected_element_obj_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
 
         self.buy_cost = 0
         self.buy_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
         self.buy_button = Button(None, f"Buy for {self.buy_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
 
-        self.run = Button(None, "Start Wave", (c.SCREEN_WIDTH // 1.2, 950), get_font(64), "white", "grey")
+        self.start_wave = Button(None, "Start Wave", (c.SCREEN_WIDTH // 1.2, 950), get_font(64), "white", "grey")
 
         self.box_rect = pygame.Rect(c.SCREEN_WIDTH // 2 - 300, c.SCREEN_HEIGHT // 2 - 150, 600, 300)
 
@@ -409,8 +410,8 @@ class MainLoop:
                     base_x, base_y = self.grid.get_cell_top_left_corner(12, 3)
                     screen.blit(base_sprite, (base_x, base_y))
 
-                    self.run.changeColor(mouse_pos)
-                    self.run.update(screen)
+                    self.start_wave.changeColor(mouse_pos)
+                    self.start_wave.update(screen)
 
                     self.draw_tutorial_prompt()
 
@@ -522,6 +523,8 @@ class MainLoop:
                                 continue
 
                             if self.selected_element_obj:
+                                self.selected_element_obj_cost = self.selected_element_obj.upgrade_cost
+
                                 if self.upgrade_exit_button.checkForInput(mouse_pos):
                                     self.deselect_all_elements()
                                     continue
@@ -583,7 +586,7 @@ class MainLoop:
 
                             self.deselect_all_elements()
 
-                            if self.run.checkForInput(mouse_pos):
+                            if self.start_wave.checkForInput(mouse_pos):
                                 self.spawn_wave()
 
                         if self.state == c.GAMEPLAY and self.paused:
