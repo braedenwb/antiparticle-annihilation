@@ -1,4 +1,5 @@
 import asyncio
+import bcrypt
 import classes.constants as c
 import pygame # type: ignore
 import sqlite3
@@ -199,7 +200,7 @@ class MainLoop:
 
         # Left side buy menu element icons:
         self.selected_element_obj = None
-        self.selected_element_obj_cost = 0
+        self.selected_element_obj_cost = None
 
         self.hydrogen_select = Button(hydrogen_sprite_button, "", (self.grid.side_margin // 6, 75), get_font(32), "white", "grey")
         self.oxygen_select   = Button(oxygen_sprite_button, "", (self.grid.side_margin // 6, 200), get_font(32), "white", "grey")
@@ -523,8 +524,6 @@ class MainLoop:
                                 continue
 
                             if self.selected_element_obj:
-                                self.selected_element_obj_cost = self.selected_element_obj.upgrade_cost
-
                                 if self.upgrade_exit_button.checkForInput(mouse_pos):
                                     self.deselect_all_elements()
                                     continue
@@ -597,6 +596,7 @@ class MainLoop:
                                 antiparticle_group.empty()
                                 element_group.empty()
                                 self.spawn_queue.clear()
+                                self.occupied_cells = [(12,2), (13,2), (12,3), (13,3)]
 
                                 continue
 
@@ -756,18 +756,19 @@ class MainLoop:
             self.error_start_time = pygame.time.get_ticks()
             return
 
+        bytes = password.encode("utf-8")
+
         self.cursor.execute("SELECT password FROM profiles WHERE username = ?", (username, ))
+        actualPassword = self.cursor.fetchone()
 
-        result = self.cursor.fetchone()
-
-        if result is None:
+        if actualPassword is None:
             self.active_error = GameError("User not found")
             self.error_start_time = pygame.time.get_ticks()
             return
-        
-        stored_password = result[0]
 
-        if password == stored_password:
+        result = bcrypt.checkpw(bytes, actualPassword[0])
+
+        if result:
             self.state = c.MAIN_MENU
         else:
             self.active_error = GameError("Incorrect password")
@@ -788,7 +789,11 @@ class MainLoop:
             return
 
         try:
-            self.cursor.execute("INSERT INTO profiles (username, password) VALUES (?, ?)", (username, password))
+            bytes = password.encode("utf-8")
+            salt = bcrypt.gensalt()
+            hashed_password = bcrypt.hashpw(bytes, salt)
+
+            self.cursor.execute("INSERT INTO profiles (username, password) VALUES (?, ?)", (username, hashed_password))
             self.connection.commit()
             self.state = c.LOGIN
         except sqlite3.IntegrityError:
