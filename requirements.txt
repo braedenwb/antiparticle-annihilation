@@ -1,3 +1,0 @@
-pygame==2.6.1
-pygame-widgets==1.2.3
-pyperclip==1.11.0

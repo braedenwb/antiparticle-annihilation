@@ -4,10 +4,10 @@
     the level select menu, and more as the game grows
 """
 
-from classes.button import Button
+from classes.ui.button import Button
 import classes.constants as c
-from classes.draw_menu import Draw_Menu
-from classes.textinput import TextInput 
+from classes.ui.draw_menu import Draw_Menu
+from classes.ui.textinput import TextInput 
 import pygame  # type: ignore
 import pygame_widgets # type: ignore
 from pygame_widgets.slider import Slider # type: ignore
@@ -125,7 +125,7 @@ class Menu:
 
         title = Draw_Menu(200, None, "Achievements", None, self.get_font(86), None, "white")
 
-        gotta_start_somewhere_sprite = pygame.image.load("assets/gotta_start_somewhere.png", ).convert_alpha()
+        gotta_start_somewhere_sprite = pygame.image.load("assets/achievements/gotta_start_somewhere.png", ).convert_alpha()
         gotta_start_somewhere_sprite = pygame.transform.scale(gotta_start_somewhere_sprite, (100, 100))
 
         

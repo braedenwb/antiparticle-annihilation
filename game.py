@@ -4,13 +4,13 @@ import classes.constants as c
 import pygame # type: ignore
 import sqlite3
 
-from classes.antiparticle import Antiparticle
-from classes.button import Button
-from classes.element import Element
-from classes.game_error import GameError
-from classes.grid import Grid
-from classes.menu import Menu
-from classes.textinput import TextInput
+from classes.entity.antiparticle import Antiparticle
+from classes.ui.button import Button
+from classes.entity.element import Element
+from classes.ui.game_error import GameError
+from classes.ui.grid import Grid
+from classes.ui.menu import Menu
+from classes.ui.textinput import TextInput
 from data.element_data import ELEMENT_DATA
 from data.tutorial_steps import TUTORIAL_STEPS
 
@@ -47,10 +47,10 @@ antiparticle_group = pygame.sprite.Group()
 element_group = pygame.sprite.Group()
 
 # Icons
-research_icon = pygame.image.load("assets/research.png").convert_alpha()
+research_icon = pygame.image.load("assets/icons/research.png").convert_alpha()
 research_icon = pygame.transform.scale(research_icon, (100, 100))
 
-energy_icon = pygame.image.load("assets/energy.png").convert_alpha()
+energy_icon = pygame.image.load("assets/icons/energy.png").convert_alpha()
 energy_icon = pygame.transform.scale(energy_icon, (100, 100))
 
 # Antiparticles
@@ -70,10 +70,10 @@ SPRITE_MAP = {
 }
 
 # Elements
-base_sprite = pygame.image.load("assets/base.png")
+base_sprite = pygame.image.load("assets/map/base.png")
 base_sprite = pygame.transform.scale(base_sprite, (1 * (tutorial_grid.cell_size), 1 * (tutorial_grid.cell_size)))
 
-energy_tile_sprite = pygame.image.load("assets/energy_tile.png").convert_alpha()
+energy_tile_sprite = pygame.image.load("assets/map/energy_tile.png").convert_alpha()
 energy_tile_sprite = pygame.transform.scale(energy_tile_sprite, (tutorial_grid.cell_size, tutorial_grid.cell_size))
 
 hydrogen_sprite_large = pygame.image.load("assets/elements/hydrogen.png").convert_alpha()
@@ -131,7 +131,7 @@ class MainLoop:
 
         # Game state management variable
         # states: main_menu (default), difficulty_select, level_select, achievements & gameplay
-        self.state = c.LOGIN
+        self.state = c.MAIN_MENU
         self.settings_state = "Audio" # state management variable for settings menu (Profiles, Audio, Clear All Data)
         self.active_error = None
         self.error_start_time = None
