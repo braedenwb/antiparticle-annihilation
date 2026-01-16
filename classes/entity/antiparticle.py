@@ -12,7 +12,7 @@ class Antiparticle(pygame.sprite.Sprite):
 
         self.health = data["health"]
         self.max_health = self.health
-        self.speed = data["speed"] * c.FPS
+        self.speed = data["speed"] * 50
         self.damage = data["damage"]
         self.attack_range = data["attack_range"]
         self.attack_cooldown = data["attack_cooldown"]
@@ -26,7 +26,6 @@ class Antiparticle(pygame.sprite.Sprite):
         self.pos = pygame.math.Vector2(self.rect.center)
         self.waypoints = waypoints
         self.target_waypoint = 1
-        self._hp_bar_width = max(10, self.rect.width)
 
     def update(self, dt, element_group):
         self.move(dt)
@@ -37,24 +36,28 @@ class Antiparticle(pygame.sprite.Sprite):
         if now - self._last_attack < self.attack_cooldown:
             return
 
+        closest = None
+        closest_dist = float("inf")
+
         for element in element_group:
             dx = element.rect.centerx - self.rect.centerx
             dy = element.rect.centery - self.rect.centery
-            dist = (dx*dx + dy*dy) ** 0.5
+            dist = dx*dx + dy*dy
 
-            if dist <= self.attack_range:
-                if hasattr(element, "take_damage"):
-                    element.take_damage(self.damage)
-                    self._last_attack = now
-                    return  # only attack one element per cooldown
-
+            if dist <= self.attack_range**2 and dist < closest_dist:
+                closest = element
+                closest_dist = dist
+        
+        if closest and hasattr(closest, "take_damage"):
+            closest.take_damage(self.damage)
+            self._last_attack = now
 
     def move(self, dt):
         if self.target_waypoint < len(self.waypoints):
             self.target = Vector2(self.waypoints[self.target_waypoint])
             movement = self.target - self.pos
         else:
-            # Reached end - remove or handle base damage
+            # Reached the end of the path. Base damage logic should begin here.
             self.kill()
             return
 
@@ -64,7 +67,7 @@ class Antiparticle(pygame.sprite.Sprite):
         if distance >= move_amount and distance != 0:
             self.pos += movement.normalize() * move_amount
         else:
-            # Advance to next waypoint
+            # Moves onto next waypoint.
             if distance != 0:
                 self.pos += movement.normalize() * distance
             self.target_waypoint += 1
@@ -72,21 +75,15 @@ class Antiparticle(pygame.sprite.Sprite):
         self.rect.center = (round(self.pos.x), round(self.pos.y))
 
     def take_damage(self, amount):
-        """Reduce health and kill when <= 0."""
         self.health -= amount
-        # optional: clamp and show debug
-        # print(f"Antiparticle took {amount}, hp now {self.health}")
         if self.health <= 0:
             self.kill()
 
     def draw_healthbar(self, surface):
-        """Optional helper: draw small healthbar above sprite."""
-        bar_w = self._hp_bar_width
+        bar_w = max(10, self.rect.width)
         bar_h = 4
         x = self.rect.left
         y = self.rect.top - 8
-        # bg
         pygame.draw.rect(surface, (100, 100, 100), (x, y, bar_w, bar_h))
-        # fg
         frac = max(0, self.health / self.max_health)
         pygame.draw.rect(surface, (0, 200, 0), (x, y, int(bar_w * frac), bar_h))

@@ -207,11 +207,10 @@ class MainLoop:
         self.silicon_select  = Button(silicon_sprite_button, "", (self.grid.side_margin // 6, 350), get_font(32), "white", "grey")
 
         self.upgrade_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
-        self.upgrade_button = Button(None, f"Upgrade for {self.selected_element_obj_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
+        self.upgrade_button = Button(None, "", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
 
-        self.buy_cost = 0
         self.buy_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
-        self.buy_button = Button(None, f"Buy for {self.buy_cost}", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
+        self.buy_button = Button(None, f"", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
 
         self.start_wave = Button(None, "Start Wave", (c.SCREEN_WIDTH // 1.2, 950), get_font(64), "white", "grey")
 
@@ -226,7 +225,7 @@ class MainLoop:
                 dt = self.clock.tick(c.FPS) / 1000 # delta time
                 mouse_pos = pygame.mouse.get_pos()
                 buttons = []
-
+                
                 events = pygame.event.get()
 
                 #region Handle menus rendering
@@ -300,6 +299,8 @@ class MainLoop:
 
                         data = ELEMENT_DATA.get(self.selected_element_obj.name, {})
 
+                        self.upgrade_button.set_text(f"Upgrade for {self.selected_element_obj.upgrade_cost}")
+
                         self.upgrade_button.changeColor(mouse_pos)
                         self.upgrade_button.update(screen)
 
@@ -357,7 +358,9 @@ class MainLoop:
                         self.buy_exit_button.changeColor(mouse_pos)
                         self.buy_exit_button.update(screen)
 
-                        self.buy_cost = data.get("buy_cost", 0)
+                        buy_cost = data.get("buy_cost", 0)
+
+                        self.buy_button.set_text(f"Buy for {buy_cost}")
 
                         self.buy_button.changeColor(mouse_pos)
                         self.buy_button.update(screen)
@@ -484,7 +487,6 @@ class MainLoop:
 
                 for event in events:
                     if event.type == pygame.QUIT:
-                        print("closed")
                         self.running = False
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -523,9 +525,10 @@ class MainLoop:
                             if clicked_on_element:
                                 continue
 
-                            if self.selected_element_obj:
+                            if self.selected_element_obj is not None:
                                 if self.upgrade_exit_button.checkForInput(mouse_pos):
                                     self.deselect_all_elements()
+                                    self.selected_element_obj = None
                                     continue
 
                                 if self.upgrade_button.checkForInput(mouse_pos):
@@ -597,6 +600,8 @@ class MainLoop:
                                 element_group.empty()
                                 self.spawn_queue.clear()
                                 self.occupied_cells = [(12,2), (13,2), (12,3), (13,3)]
+
+                                self.selected_element_obj = None
 
                                 continue
 
@@ -671,8 +676,6 @@ class MainLoop:
                 ))
 
             self.tutorial_prompt = TUTORIAL_STEPS.get(self.current_wave, "")
-            self.prompt_start_time = pygame.time.get_ticks()
-
 
     def deselect_all_elements(self):
         for element in element_group:
