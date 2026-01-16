@@ -18,25 +18,18 @@ class Element(pygame.sprite.Sprite):
         self.energy_generation = data.get("energy_generation", 0)
         self.healing = data.get("healing", 0)
 
-        self._last_action = 0  # shared timer for non-attack actions
+        self._last_action = 0 
 
-
-        # Level / upgrade
         self.upgrade_level = 1
-        # Use safe .get() lookups in case keys differ between data files
         self.upgrade_cost = ELEMENT_DATA.get(name, {}).get("upgrade_cost", 10)
 
-        # range in pixels, cooldown in milliseconds, damage numeric
         self.range = ELEMENT_DATA.get(name, {}).get("range", 150)
         self.cooldown = ELEMENT_DATA.get(name, {}).get("cooldown", 1500)
         self.base_damage = ELEMENT_DATA.get(name, {}).get("damage", 1)
         self.damage = self.base_damage
 
-        # sprite and rect
         self.image = image
         self.rect = self.image.get_rect(center=pos)
-
-        # keep pos consistent with rect.center for distance checks
 
         self.max_health = data.get("hp", 100)
         self.health = self.max_health
@@ -45,16 +38,13 @@ class Element(pygame.sprite.Sprite):
         self.selected = False
         self.target = None
 
-        # last shot timestamp (ms)
+        # Time of last damage dealt in ms
         self._last_shot = 0
 
-        # range indicator surface (semi-transparent)
+        # range indicator surface / selection indicator
         self.range_image = pygame.Surface((self.range * 2, self.range * 2), pygame.SRCALPHA)
         pygame.draw.circle(self.range_image, (180, 180, 180, 100), (self.range, self.range), self.range)
         self.range_rect = self.range_image.get_rect(center=self.rect.center)
-
-        # debug toggle
-        self.debug = False
 
     def update(self, antiparticle_group, game):
         self.pos = self.rect.center
@@ -62,21 +52,18 @@ class Element(pygame.sprite.Sprite):
 
         now = get_ticks()
 
-        # ENERGY ELEMENT: generate energy passively
         if self.is_energy:
             if now - self._last_action >= self.cooldown:
                 game.energy_amount += self.energy_generation
                 self._last_action = now
-            return  # energy towers do nothing else
+            return 
 
-        # HEALING ELEMENT: heal nearby elements
         if self.is_healing:
             if now - self._last_action >= self.cooldown:
                 self.heal_nearby(game)
                 self._last_action = now
             return
 
-        # DAMAGE ELEMENT (default behavior)
         if self.is_damage:
             self.pick_target(antiparticle_group)
             if self.target:
@@ -103,31 +90,22 @@ class Element(pygame.sprite.Sprite):
 
         self.target = closest
 
-        if self.debug and self.target:
-            print(f"[DEBUG] {self.name} selected target at dist {closest_dist:.1f}")
-
     def try_fire(self):
-        """Fire instantly at current target if cooldown has elapsed."""
+        """Fire instantly at current target if cooldown has elapsed"""
         now = get_ticks()
         if now - self._last_shot < self.cooldown:
-            return  # still cooling down
+            return  # still on cool down
 
-        # target might have died or been removed
         if not self.target or not getattr(self.target, "alive", lambda: True)():
             self.target = None
             return
 
-        # Apply damage (instant hit)
         if hasattr(self.target, "take_damage"):
             self.target.take_damage(self.damage)
-            if self.debug:
-                print(f"[DEBUG] {self.name} hit {self.target} for {self.damage}")
         else:
-            # fallback: try reducing a numeric health attribute
             if hasattr(self.target, "health"):
                 self.target.health -= self.damage
 
-        # record shot timestamp
         self._last_shot = now
 
     def upgrade(self):
@@ -161,9 +139,7 @@ class Element(pygame.sprite.Sprite):
 
         ratio = max(self.health / self.max_health, 0)
 
-        # Background
         pygame.draw.rect(surface, (60, 60, 60), (x, y, bar_width, bar_height))
-        # Foreground
         pygame.draw.rect(surface, (50, 200, 50), (x, y, int(bar_width * ratio), bar_height))
 
 
@@ -195,7 +171,6 @@ class Element(pygame.sprite.Sprite):
             self.die()
 
     def die(self):
-        """Remove element and free occupied cell."""
         if hasattr(self, "cell") and self.cell in self.game_instance.occupied_cells:
             self.game_instance.occupied_cells.remove(self.cell)
         self.kill()
