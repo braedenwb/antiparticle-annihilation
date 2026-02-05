@@ -1,6 +1,6 @@
 """
-This file is for starting the game
-and starting asyncio for web assembly. 
+This file is the entrypoint for starting an instance
+of the game and starting asyncio for web assembly. 
 Prints out any errors to the console.
 """
 import asyncio 

@@ -1,5 +1,6 @@
 ELEMENT_DATA = {
     "hydrogen": {
+        "symbol": "H",
         "buy_cost": 20,
         "upgrade_cost": 10,
         "state": "Gas",
@@ -9,16 +10,17 @@ ELEMENT_DATA = {
         "energy_element": False,
         "radioactive_element": False,
 
-        "hp": 50,
+        "hp": 20,
         "damage": 10,
         "cooldown": 400,
         "range": 150
     },
 
     "oxygen": {
+        "symbol": "O",
         "level": 1,
-        "buy_cost": 100,
-        "upgrade_cost": 50,
+        "buy_cost": 30,
+        "upgrade_cost": 15,
         "state": "Gas",
         "desc": "Heals nearby elements & compounds.",
         "damage_element": False,
@@ -26,13 +28,14 @@ ELEMENT_DATA = {
         "energy_element": False,
         "radioactive_element": False,
 
-        "hp": 50,
+        "hp": 20,
         "healing": 15,
         "cooldown": 5000,
         "range": 75
     },
     
     "silicon": {
+        "symbol": "Si",
         "level": 1,
         "buy_cost": 100,
         "upgrade_cost": 50,

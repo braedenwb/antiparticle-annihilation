@@ -59,6 +59,18 @@ class Grid:
         x = self.x + col * self.cell_size + self.cell_size // 2
         y = self.y + row * self.cell_size + self.cell_size // 2
         return (x, y)
+    
+    def get_cell_at_center(self, pos):
+        x, y = pos
+        col = (x - self.side_margin) // self.cell_size
+        row = y // self.cell_size
+        return int(col), int(row)
+
+    def get_cell_from_center(self, pos):
+        x, y = pos
+        col = (x - self.x) // self.cell_size
+        row = (y - self.y) // self.cell_size
+        return int(col), int(row)
 
     def get_cell_top_left_corner(self, col, row):
         x = self.x + col * self.cell_size

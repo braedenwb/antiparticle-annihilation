@@ -1,10 +1,22 @@
+"""
+antiparticle.py
+
+Defines the Antiparticle entity's movement, combat behaviour, and health.
+
+Author(s): Braeden
+Created: 2025-11-28
+"""
+
 import pygame
-import classes.constants as c
 from pygame.math import Vector2
 
+import classes.constants as c
 from data.antiparticle_data import ANTIPARTICLE_DATA
 
 class Antiparticle(pygame.sprite.Sprite):
+    """
+    Enemy that follows a waypoint path and attacks nearby elements
+    """
     def __init__(self, waypoints, type_name, image):
         super().__init__()
         self.type_name = type_name
@@ -27,11 +39,11 @@ class Antiparticle(pygame.sprite.Sprite):
         self.waypoints = waypoints
         self.target_waypoint = 1
 
-    def update(self, dt, element_group):
+    def update(self, dt, element_group, base):
         self.move(dt)
-        self.try_attack(element_group)
+        self.try_attack(element_group, base)
 
-    def try_attack(self, element_group):
+    def try_attack(self, element_group, base):
         now = pygame.time.get_ticks()
         if now - self._last_attack < self.attack_cooldown:
             return
@@ -47,8 +59,18 @@ class Antiparticle(pygame.sprite.Sprite):
             if dist <= self.attack_range**2 and dist < closest_dist:
                 closest = element
                 closest_dist = dist
+
+        dx = base.rect.centerx - self.rect.centerx
+        dy = base.rect.centery - self.rect.centery
+        dist = dx*dx + dy*dy
+
+        if dist <= self.attack_range**2 and dist < closest_dist:
+            closest = base
+            closest_dist = dist
         
         if closest and hasattr(closest, "take_damage"):
+            if hasattr(base, "Base") and self.type_name == "top_antiquark":
+                self.damage *= 5
             closest.take_damage(self.damage)
             self._last_attack = now
 
@@ -81,7 +103,7 @@ class Antiparticle(pygame.sprite.Sprite):
 
     def draw_healthbar(self, surface):
         bar_w = max(10, self.rect.width)
-        bar_h = 4
+        bar_h = 6
         x = self.rect.left
         y = self.rect.top - 8
         pygame.draw.rect(surface, (100, 100, 100), (x, y, bar_w, bar_h))

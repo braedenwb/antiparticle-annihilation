@@ -1,15 +1,37 @@
+"""
+element.py
+
+Defines placeable element entities with damage,
+healing, or energy generation.
+
+Author(s): Braeden
+Created: 2025-11-28
+"""
+
 import pygame
 import math
-from pygame.time import get_ticks
 from data.element_data import ELEMENT_DATA
+from pygame.time import get_ticks
+
+def get_font(size):
+    return pygame.font.Font("assets/fonts/Orbitron-Medium.ttf", size)
 
 class Element(pygame.sprite.Sprite):
-    def __init__(self, image, pos, name):
+    """
+    Placeable entity that can deal damage, heal other elements,
+    or generate energy based on its configuration
+    """
+    def __init__(self, image, pos, name, game, cell):
         super().__init__()
 
         self.name = name
 
+        self.game = game
+        self.cell = cell
+
         data = ELEMENT_DATA.get(name, {})
+
+        self.symbol = data.get("symbol", "E")
 
         self.is_damage = data.get("damage_element", False)
         self.is_healing = data.get("healing_element", False)
@@ -91,7 +113,6 @@ class Element(pygame.sprite.Sprite):
         self.target = closest
 
     def try_fire(self):
-        """Fire instantly at current target if cooldown has elapsed"""
         now = get_ticks()
         if now - self._last_shot < self.cooldown:
             return  # still on cool down
@@ -128,6 +149,7 @@ class Element(pygame.sprite.Sprite):
     def draw(self, surface):
         surface.blit(self.image, self.rect)
         self.draw_healthbar(surface)
+        self.draw_subscript(surface)
         if self.selected:
             surface.blit(self.range_image, self.range_rect)
 
@@ -142,6 +164,12 @@ class Element(pygame.sprite.Sprite):
         pygame.draw.rect(surface, (60, 60, 60), (x, y, bar_width, bar_height))
         pygame.draw.rect(surface, (50, 200, 50), (x, y, int(bar_width * ratio), bar_height))
 
+    def draw_subscript(self, surface):
+        x = self.rect.right - 20
+        y = self.rect.bottom - 20
+        subscript = get_font(20).render(str(self.upgrade_level), True, "white")
+        subscript_rect = subscript.get_rect(center=(x, y))
+        surface.blit(subscript, subscript_rect)
 
     def update_range(self):
         self.range_image = pygame.Surface((self.range * 2, self.range * 2), pygame.SRCALPHA)
@@ -165,12 +193,11 @@ class Element(pygame.sprite.Sprite):
                     )
 
     def take_damage(self, amount):
-        """Reduce element health and remove if dead."""
         self.health -= amount
         if self.health <= 0:
             self.die()
 
     def die(self):
-        if hasattr(self, "cell") and self.cell in self.game_instance.occupied_cells:
-            self.game_instance.occupied_cells.remove(self.cell)
+        self.game.occupied_cells.remove(self.cell)
         self.kill()
+
