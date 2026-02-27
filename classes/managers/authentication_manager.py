@@ -8,18 +8,20 @@ Author(s): Alan
 Created: 2026-01-22
 """
 
-from classes.ui.game_error import GameError
-import pygame
 import bcrypt
 import classes.constants as c
+import classes.managers.database_manager as database_manager
+import pygame
 import sqlite3
+
+from classes.ui.game_error import GameError
 
 def handle_signup(self) -> None:
     """
     Gets username and password from user if new user
     """
-    username = self.username_input.text
-    password = self.password_input.text
+    username = self.menu.username_input.text
+    password = self.menu.password_input.text
 
     if username == "":
         self.active_error = GameError("Username cannot be empty")
@@ -37,6 +39,8 @@ def handle_signup(self) -> None:
         hashed_password = bcrypt.hashpw(bytes, salt)
 
         self.cursor.execute("INSERT INTO profiles (username, password) VALUES (?, ?)", (username, hashed_password))
+        user_id = self.cursor.lastrowid
+        database_manager.ensure_user_research_record(self, user_id, 0)
         self.connection.commit()
         self.state = c.LOGIN
     except sqlite3.IntegrityError:
@@ -47,8 +51,8 @@ def handle_login(self):
     """
     Gets username and password and adds it to the database
     """
-    username = self.username_input.text
-    password = self.password_input.text
+    username = self.menu.username_input.text
+    password = self.menu.password_input.text
 
     if username == "":
         self.active_error = GameError("Username cannot be empty")
@@ -75,6 +79,7 @@ def handle_login(self):
     if result:
         self.cursor.execute("SELECT user_id FROM profiles WHERE username = ?", (username, ))
         self.user_id = self.cursor.fetchone()
+        self.research_amount = database_manager.get_user_research(self, self.user_id[0])
 
         self.state = c.MAIN_MENU
     else:

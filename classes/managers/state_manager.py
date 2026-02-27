@@ -8,8 +8,9 @@ Author(s): Braeden
 Created: 2026-01-22
 """
 
-import classes.managers.authentication_manager as auth
 import classes.constants as c 
+import classes.managers.authentication_manager as auth
+import classes.managers.database_manager as database_manager
 from classes.ui.button import Button
 
 def handle_button(self, button: Button) -> None:
@@ -20,7 +21,16 @@ def handle_button(self, button: Button) -> None:
     """
     if self.state == c.MAIN_MENU:
         if button.text_input == "Play":
-            self.state = c.GAMEPLAY
+            tutorial_completed = False
+            if self.user_id:
+                progress = database_manager.get_user_level_progress(self, self.user_id[0])
+                tutorial_completed = progress.get("tutorial", False)
+
+            if tutorial_completed:
+                self.state = c.LEVEL_SELECT
+            else:
+                self.state = c.GAMEPLAY
+            # self.state = c.LEVEL_SELECT
         elif button.text_input == "Settings":
             self.state = c.SETTINGS
         elif button.text_input == "Achievements":
@@ -31,11 +41,32 @@ def handle_button(self, button: Button) -> None:
         if button.text_input == "<":
             self.state = c.MAIN_MENU
         elif button.text_input in ["Beginner", "Intermediate", "Chemist"]:
-            self.state = c.LEVEL_SELECT
+                self.selected_map = "tutorial"
+                self.state = c.GAMEPLAY
     elif self.state == c.LEVEL_SELECT:
         if button.text_input == "<":
             self.state = c.MAIN_MENU
-        elif button.text_input == "Tutorial":
+        elif getattr(button, "map_id", None):
+            self.selected_map = button.map_id
+            self.state = c.GAMEPLAY
+    elif self.state == c.GAMEPLAY: #ADDED
+        if button.text_input == "Questions":
+            self.state = c.QUESTIONS
+    elif self.state == c.QUESTIONS: #ADDED
+        if button.text_input == "<":
+            self.state = c.GAMEPLAY
+        if button.text_input == "Nucleus":
+            self.question_class.correct_answer()
+            self.gameplay.award_research_for_correct_answer(1)
+            self.state = c.GAMEPLAY
+        elif button.text_input == "Electrons":
+            self.question_class.wrong_answer()
+            self.state = c.GAMEPLAY
+        elif button.text_input == "A ball":
+            self.question_class.wrong_answer()
+            self.state = c.GAMEPLAY
+        elif button.text_input == "Gas":
+            self.question_class.wrong_answer()
             self.state = c.GAMEPLAY
     elif self.state == c.SETTINGS:
         if button.text_input == "<":

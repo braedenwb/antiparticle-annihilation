@@ -3,8 +3,10 @@ This file is the entrypoint for starting an instance
 of the game and starting asyncio for web assembly. 
 Prints out any errors to the console.
 """
+
 import asyncio 
-import pygame # type: ignore
+import pygame
+
 from game import MainLoop 
 
 async def main():

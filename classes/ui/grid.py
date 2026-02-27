@@ -33,7 +33,9 @@ class Grid:
             for c in range(self.cols)
         ]
 
-    def draw(self, surface, grid_color=(180, 180, 180)):
+    def draw(self, surface, grid, cells, assets, gameplay, grid_color=(180, 180, 180)):
+        self.draw_path(surface, grid, cells)
+
         for row in range(self.rows + 1):
             y = self.y + row * self.cell_size
             pygame.draw.line(surface, grid_color,
@@ -45,6 +47,44 @@ class Grid:
             pygame.draw.line(surface, grid_color,
                              (x, self.y),
                              (x, self.y + self.rows * self.cell_size), 1)
+        
+        self.draw_energy_tiles(assets, gameplay, surface)
+
+    def draw_path(self, surface, grid, cells):
+        for col, row in cells:
+            rect = pygame.Rect(
+                grid.get_cell_top_left_corner(col, row),
+                (grid.cell_size, grid.cell_size)
+            )
+            pygame.draw.rect(surface, (255, 255, 255), rect)
+
+    def draw_energy_tiles(self, assets, gameplay, surface):
+        energy_tile = assets.tiles.get("energy_tile")
+        if energy_tile:
+            for col, row in gameplay.energy_tiles:
+                pos = self.get_cell_top_left_corner(col, row)
+                surface.blit(energy_tile, pos)
+
+    def expand_path_cells(self, grid, waypoints):
+        cells = set()
+
+        waypoint_cells = [
+            grid.get_cell_from_center(p)
+            for p in waypoints
+        ]
+
+        for (c1, r1), (c2, r2) in zip(waypoint_cells, waypoint_cells[1:]):
+            if c1 == c2:
+                step = 1 if r2 > r1 else -1
+                for r in range(r1, r2 + step, step):
+                    cells.add((c1, r))
+
+            elif r1 == r2:
+                step = 1 if c2 > c1 else -1
+                for c in range(c1, c2 + step, step):
+                    cells.add((c, r1))
+
+        return cells
 
     def get_cell_at_pos(self, pos):
         mx, my = pos
@@ -76,3 +116,4 @@ class Grid:
         x = self.x + col * self.cell_size
         y = self.y + row * self.cell_size
         return (x, y)
+

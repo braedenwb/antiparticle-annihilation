@@ -20,7 +20,6 @@ class Base(pygame.sprite.Sprite):
         self.pos = pos
         self.max_health = 20
         self.health = 20
-        self.base = "Base"
         
         self.image = image
         self.rect = self.image.get_rect(center=pos)
@@ -45,4 +44,4 @@ class Base(pygame.sprite.Sprite):
             self.die()
     
     def die(self):
-        self.game.lose_game()
+        self.game.gameplay.lose_game()

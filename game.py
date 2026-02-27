@@ -1,650 +1,270 @@
 import asyncio
 import classes.constants as c
-import pygame # type: ignore
 import classes.managers.database_manager as database_manager
 import classes.managers.state_manager as state_manager
-from classes.managers.asset_manager import Assets
-from classes.entity.antiparticle import Antiparticle
+import classes.ui.text.text_utils as text
+import pygame
+
 from classes.entity.base import Base
-from classes.entity.element import Element
-from classes.ui.button import Button
+from classes.managers.asset_manager import Assets
+from classes.managers.bonding_manager import BondingManager
+from classes.managers.gameplay_manager import GameplayManager
+from classes.ui.panels.question_panel import QuestionPanel
+from classes.ui.panels.element_panel import ElementPanel
 from classes.ui.game_error import GameError
 from classes.ui.grid import Grid
-from classes.ui.menu import Menu
-from classes.ui.textinput import TextInput
+from classes.ui.panels.guide_panel import GuidePanel
+from classes.ui.panels.hud_panel import HudPanel
+from classes.ui.menus.menu import Menu
+from classes.ui.menus.pause_menu import PauseMenu
 from data.element_data import ELEMENT_DATA
-from data.tutorial_steps import TUTORIAL_STEPS
 
 pygame.init()
-
-screen = pygame.display.set_mode((c.SCREEN_WIDTH, c.SCREEN_HEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Antiparticle Annihilation")
-
-def get_font(size):
-    return pygame.font.Font("assets/fonts/Orbitron-Medium.ttf", size)
-
-def draw_centered_wrapped_text(surface, text, font, color, rect, line_height):
-        """
-        Draws wrapped and horizontally centered text inside a rect,
-        used for element descriptions / properties in the buy / upgrade menu.
-        """
-        words = text.split(' ')
-        lines = []
-        current_line = ""
-
-        for word in words:
-            test_line = current_line + word + " "
-            if font.size(test_line)[0] < rect.width:
-                current_line = test_line
-            else:
-                lines.append(current_line.strip())
-                current_line = word + " "
-        lines.append(current_line.strip())
-
-        y = rect.top
-        for line in lines:
-            rendered = font.render(line, True, color)
-            text_rect = rendered.get_rect(centerx=rect.centerx, top=y)
-            surface.blit(rendered, text_rect)
-            y += line_height
-
-def expand_path_cells(grid, waypoints):
-        cells = set()
-
-        waypoint_cells = [
-            grid.get_cell_from_center(p)
-            for p in waypoints
-        ]
-
-        for (c1, r1), (c2, r2) in zip(waypoint_cells, waypoint_cells[1:]):
-            if c1 == c2:
-                step = 1 if r2 > r1 else -1
-                for r in range(r1, r2 + step, step):
-                    cells.add((c1, r))
-
-            elif r1 == r2:
-                step = 1 if c2 > c1 else -1
-                for c in range(c1, c2 + step, step):
-                    cells.add((c, r1))
-
-        return cells
-
-tutorial_grid = Grid(c.SCREEN_WIDTH, c.SCREEN_HEIGHT, cols=24, rows=14)
-
-first_lane_waypoints = [
-    tutorial_grid.get_cell_center(3,0), # Returns format (x, y)
-    tutorial_grid.get_cell_center(3,8),
-    tutorial_grid.get_cell_center(5,8),
-    tutorial_grid.get_cell_center(5,2),
-    tutorial_grid.get_cell_center(8,2),
-    tutorial_grid.get_cell_center(8,8),
-    tutorial_grid.get_cell_center(12,8),
-    tutorial_grid.get_cell_center(12,3)
-]
-
-second_lane_waypoints = [
-    tutorial_grid.get_cell_center(4,0),
-    tutorial_grid.get_cell_center(4,3),
-    tutorial_grid.get_cell_center(8,3),
-    tutorial_grid.get_cell_center(8,6),
-    tutorial_grid.get_cell_center(12,6),
-    tutorial_grid.get_cell_center(12,3)
-]
-
-first_lane_cells = expand_path_cells(tutorial_grid, first_lane_waypoints)
-
 
 class MainLoop:
     def __init__(self):
+        # Core
+        self.screen = pygame.display.set_mode((c.SCREEN_WIDTH, c.SCREEN_HEIGHT), pygame.FULLSCREEN)
         self.running = True
-        self.grid = tutorial_grid
-        self.assets = Assets(tutorial_grid.cell_size)
+        self.clock = pygame.time.Clock()
 
-        self.sprite_map = {
-            name: self.assets.antiparticles[name]["grid"]
-            for name in self.assets.antiparticles
-        }
+        # Grid & assets
+        self.grid = Grid(c.SCREEN_WIDTH, c.SCREEN_HEIGHT, cols=24, rows=14)
+        self.assets = Assets(self.grid.cell_size)
+
         database_manager.load_database(self)
-        
+        self.user_id = None
 
-        # Game state management variable
-        # states: main_menu (default), difficulty_select, level_select, achievements & gameplay
+        # pathing
+        self.first_lane_waypoints = [
+            self.grid.get_cell_center(3,0),
+            self.grid.get_cell_center(3,8),
+            self.grid.get_cell_center(5,8),
+            self.grid.get_cell_center(5,2),
+            self.grid.get_cell_center(8,2),
+            self.grid.get_cell_center(8,8),
+            self.grid.get_cell_center(12,8),
+            self.grid.get_cell_center(12,3)
+        ]
+        self.first_lane_cells = self.grid.expand_path_cells(self.grid, self.first_lane_waypoints)
+
+        # State variables
         self.state = c.LOGIN
-        self.settings_state = "Audio" # state management variable for settings menu (Profiles, Audio, Clear All Data)
+        self.settings_state = "Audio"
+        self.paused = False
+        self.is_tutorial_complete = False
+        self.selected_map = "tutorial"
+
+        # Error handling
         self.active_error = None
         self.error_start_time = None
 
-        self.pending_state = None
-        self.game_over_delay = 3000  
-
-
-        self.occupied_cells = [
-            (12,2), (13,2), # These coordinates
-            (12,3), (13,3)  # are for the base
-        ]
-        self.energy_tiles = [
-            (16,4),
-            (1,11),
-            (5,9),
-            (2,8),
-            (14,2),
-            (13,10)
-        ]
-
+        # Base entity
         self.base_x, self.base_y = self.grid.get_cell_top_left_corner(12, 3)
         self.base = Base(self, (self.base_x, self.base_y), self.assets.tiles["base"])
 
+        # selection variables
         self.selected_element = None
         self.selected_element_button = None
-        self.spawn_queue = []
-
-        self.energy_amount = 20 # starting amount is 20 for tutorial level
-
-        self.clock = pygame.time.Clock()
-        self.menu = Menu(
-            screen,
-            get_font,
-            self.assets.icons["research"]
-        )
-
-        self.username_input = TextInput(
-            c.SCREEN_WIDTH // 2 - 150,
-            c.SCREEN_HEIGHT // 2 - 50,
-            300, 60,
-            get_font(40),
-            placeholder="Username"
-        )
-
-        self.password_input = TextInput(
-            c.SCREEN_WIDTH // 2 - 150,
-            c.SCREEN_HEIGHT // 2 + 50,
-            300, 60,
-            get_font(40),
-            placeholder="Password",
-            password=True
-        )
-
-        self.user_id = 0
-        self.is_tutorial_complete = False
-
-        self.lose = False
-        self.win = False
-
-        self.antiparticle_group = pygame.sprite.Group()
-        self.element_group = pygame.sprite.Group()
-
-        self.paused = False
-        self.pause_overlay = pygame.Surface((c.SCREEN_WIDTH, c.SCREEN_HEIGHT))
-        self.pause_overlay.set_alpha(180)
-        self.pause_overlay.fill((0, 0, 0))
-
-        self.current_wave = 0
-        self.total_waves = 6
-        self.tutorial_prompt = "Welcome! Buy a hydrogen (H) and place it near the red line and start a wave."
-        self.prompt_start_time = 0
-
-        self.PANEL_X = self.grid.side_margin // 3
-        self.PANEL_Y = 25
-
-        self.LINE_HEIGHT = 25
-
-        # Left side buy menu element icons:
         self.selected_element_obj = None
         self.selected_element_obj_cost = None
 
-        self.hydrogen_select = Button(self.assets.elements["hydrogen"]["button"], "", (self.grid.side_margin // 6, 75), get_font(32), "white", "grey")
-        self.oxygen_select   = Button(self.assets.elements["oxygen"]["button"], "", (self.grid.side_margin // 6, 200), get_font(32), "white", "grey")
-        self.silicon_select  = Button(self.assets.elements["silicon"]["button"], "", (self.grid.side_margin // 6, 350), get_font(32), "white", "grey")
+        #  Sprite groups
+        self.antiparticle_group = pygame.sprite.Group()
+        self.element_group = pygame.sprite.Group()
 
-        self.upgrade_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
-        self.upgrade_button = Button(None, "", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
+        # Text line spacing
+        self.LINE_HEIGHT = 25
 
-        self.buy_exit_button = Button(None, "X", (self.PANEL_X + 275, self.PANEL_Y + 25), get_font(28), "red", "darkred")
-        self.buy_button = Button(None, f"", (self.PANEL_X + 150, self.PANEL_Y + 90), get_font(26), "white", "grey")
+        # Managers
+        self.bonding_manager = BondingManager(self)
+        self.gameplay = GameplayManager(self)
 
-        self.start_wave = Button(None, "Start Wave", (c.SCREEN_WIDTH // 1.2, 950), get_font(64), "white", "grey")
+        # UI systems
+        self.menu = Menu(self.screen, text.get_font, self.assets.icons["research"])
+        self.pause_menu = PauseMenu(self, text.get_font)
+        self.question_panel = QuestionPanel(self.screen)
+        self.element_panel = ElementPanel(self, text.get_font, text.draw_centered_wrapped_text)
+        self.hud_panel = HudPanel(self, text.get_font)
+        self.guide_panel = GuidePanel(self, text.get_font, text.draw_wrapped_text)
 
-        self.box_rect = pygame.Rect(c.SCREEN_WIDTH // 2 - 300, c.SCREEN_HEIGHT // 2 - 150, 600, 300)
+    def handle_events(self, events, mouse_pos, buttons):
+        for event in events:
+            if event.type == pygame.QUIT:
+                self.running = False
 
-        self.yes_button = Button(None, "Yes", (self.box_rect.centerx - 100, self.box_rect.bottom - 60), get_font(28), "white", "grey")
-        self.cancel_button = Button(None, "Cancel", (self.box_rect.centerx + 100, self.box_rect.bottom - 60), get_font(28), "white", "grey")
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                self.handle_mouse_down(mouse_pos, buttons)
+            
+            if event.type == pygame.KEYDOWN:
+                self.handle_key_down(event)
+
+            if self.state == c.LOGIN or self.state == c.SIGNUP:
+                self.menu.username_input.handle_event(event)
+                self.menu.password_input.handle_event(event)  
+
+    def handle_mouse_down(self, mouse_pos, buttons):
+        if self.state == c.GAMEPLAY:
+            if self.guide_panel.active_guide_key is not None:
+                if self.guide_panel.guide_close_button.checkForInput(mouse_pos):
+                    self.guide_panel.close_guide()
+                    return
+                if self.guide_panel.guide_next_button.checkForInput(mouse_pos):
+                    self.guide_panel.advance_guide()
+                    return
+                if self.guide_panel.guide_back_button.checkForInput(mouse_pos):
+                    self.guide_panel.reverse_guide()
+                    return
+
+                # While guide is visible, block clicks from reaching gameplay UI.
+                return
+
+            if self.paused:
+                if not self.gameplay.win and not self.gameplay.lose:
+                    if self.pause_menu.yes_button.checkForInput(mouse_pos):
+                        self.gameplay.reset_level()
+                        self.state = c.MAIN_MENU
+                        self.paused = False
+
+                    if self.pause_menu.cancel_button.checkForInput(mouse_pos):
+                        self.paused = False
+
+            if self.element_panel.hydrogen_select.checkForInput(mouse_pos):
+                self.deselect_all_elements()
+                self.selected_element_button = "hydrogen"
+                self.selected_element = None
+                self.selected_element_obj = None
+
+            if self.element_panel.oxygen_select.checkForInput(mouse_pos):
+                self.deselect_all_elements()
+                self.selected_element_button = "oxygen"
+                self.selected_element = None
+                self.selected_element_obj = None
+
+            if self.element_panel.silicon_select.checkForInput(mouse_pos):
+                self.deselect_all_elements()
+                self.selected_element_button = "silicon"
+                self.selected_element = None
+                self.selected_element_obj = None
+
+            for element in self.element_group:
+                if element.rect.collidepoint(mouse_pos):
+                    for e in self.element_group:
+                        e.selected = False
+                    element.selected = True
+                    self.selected_element_obj = element
+
+                    self.selected_element_button = None
+                    self.selected_element = None
+
+                    break
+
+            if self.selected_element_obj is not None:
+                if self.element_panel.upgrade_exit_button.checkForInput(mouse_pos):
+                    self.deselect_all_elements()
+                    self.selected_element_obj = None
+
+                if self.element_panel.upgrade_button.checkForInput(mouse_pos):
+                    upgrade_cost = self.selected_element_obj.upgrade_cost
+                    if self.gameplay.energy_amount >= upgrade_cost:
+                        self.selected_element_obj.upgrade()
+                        self.gameplay.energy_amount -= upgrade_cost
+                    elif self.gameplay.energy_amount < upgrade_cost:
+                        self.active_error = GameError("Not enough energy!")
+                        self.error_start_time = pygame.time.get_ticks()
+
+            elif self.selected_element_button is not None:
+                if self.element_panel.buy_exit_button.checkForInput(mouse_pos):
+                    self.selected_element_button = None
+
+                if self.element_panel.buy_button.checkForInput(mouse_pos):
+                    element_name = self.selected_element_button
+                    cost = ELEMENT_DATA[element_name]["buy_cost"]
+
+                    if self.gameplay.energy_amount >= cost:
+                        self.selected_element = element_name 
+                    else:
+                        self.active_error = GameError("Not enough energy!")
+                        self.error_start_time = pygame.time.get_ticks()
+
+            if self.selected_element:
+                cell = self.grid.get_cell_at_pos(mouse_pos)
+                if cell:
+                    success, error = self.gameplay.place_element(self.selected_element, cell)
+
+                    if not success:
+                        self.active_error = GameError(error)
+                        self.error_start_time = pygame.time.get_ticks()
+                    else:
+                        self.selected_element = None
+
+            if self.hud_panel.start_wave.checkForInput(mouse_pos) and not self.antiparticle_group:
+                self.gameplay.spawn_wave()
+
+            if self.hud_panel.answer_questions.checkForInput(mouse_pos):
+                self.state = c.QUESTIONS
+
+            if self.hud_panel.guide_button.checkForInput(mouse_pos):
+                self.guide_panel.restart_guide()
+
+        for button in buttons: 
+            if button.checkForInput(mouse_pos): state_manager.handle_button(self, button)
+
+    def handle_key_down(self, event):
+        if event.key == pygame.K_ESCAPE and self.state == c.GAMEPLAY and self.gameplay.pending_state is None:
+            self.paused = not self.paused
+        if event.key == pygame.K_ESCAPE and self.state == c.QUESTIONS:
+            self.state = c.GAMEPLAY
 
     async def run(self):
         try: 
             while self.running:
-                dt = self.clock.tick(c.FPS) / 1000 # delta time
+                dt = self.clock.tick(c.FPS) / 1000
                 mouse_pos = pygame.mouse.get_pos()
+                events = pygame.event.get()
                 buttons = []
                 
-                events = pygame.event.get()
-
                 #region Handle menus rendering
                 if self.state == c.MAIN_MENU:
-                    buttons = self.menu.draw_main_menu(mouse_pos, self.username_input.text)
+                    buttons = self.menu.draw_main_menu(mouse_pos, self.menu.username_input.text)
                 elif self.state == c.DIFFICULTY_SELECT:
                     buttons = self.menu.draw_difficulty_select(mouse_pos)
                 elif self.state == c.LEVEL_SELECT:
-                    buttons = self.menu.draw_level_select(mouse_pos)
+                    progress = {"tutorial": False}
+                    if self.user_id:
+                        progress = database_manager.get_user_level_progress(self, self.user_id[0])
+                    buttons = self.menu.draw_level_select(mouse_pos, progress)
+                elif self.state == c.QUESTIONS:
+                    buttons = self.question_panel.draw_question_boxes(mouse_pos)
                 elif self.state == c.SETTINGS:
                     buttons = self.menu.draw_settings(mouse_pos, self.settings_state, events)
                 elif self.state == c.ACHIEVEMENTS:
                     buttons = self.menu.draw_achievements(mouse_pos)
                 elif self.state == c.LOGIN:
-                    buttons = self.menu.draw_log_in(mouse_pos, self.username_input, self.password_input)
+                    buttons = self.menu.draw_log_in(mouse_pos, self.menu.username_input, self.menu.password_input)
                 elif self.state == c.SIGNUP:
-                    buttons = self.menu.draw_sign_up(mouse_pos, self.username_input, self.password_input)
+                    buttons = self.menu.draw_sign_up(mouse_pos, self.menu.username_input, self.menu.password_input)
                 #endregion
 
-                if self.active_error is not None:
-                    self.active_error.update(screen)
+                self.handle_events(events, mouse_pos, buttons)
 
-                    if pygame.time.get_ticks() - self.error_start_time > self.game_over_delay:
+                if self.active_error is not None:
+                    self.active_error.update(self.screen)
+
+                    if pygame.time.get_ticks() - self.error_start_time > self.gameplay.game_over_delay:
                         self.active_error = None
                         self.error_start_time = None
 
-                        if self.pending_state == c.MAIN_MENU:
-                            self.reset_level()
+                        if self.gameplay.pending_state == c.MAIN_MENU:
+                            self.gameplay.reset_level()
                             self.paused = False
                             self.state = c.MAIN_MENU
-                            self.pending_state = None
-
-
-                #region Gameplay
+                            self.gameplay.pending_state = None
+                    
                 if self.state == c.GAMEPLAY:
-
-                    ################################################################
-                    # Beginning of Rendering
-                    ################################################################
-                    
-                    screen.fill("#252525")
-
-                    for col, row in first_lane_cells:
-                        rect = pygame.Rect(
-                            tutorial_grid.get_cell_top_left_corner(col, row),
-                            (tutorial_grid.cell_size, tutorial_grid.cell_size)
-                        )
-                        pygame.draw.rect(screen, (255, 255, 255), rect)
-
-                    # self.grid.draw(screen)
-
-                    pygame.draw.rect(screen, "#445d68", (0, self.grid.grid_area_height, c.SCREEN_WIDTH, c.SCREEN_HEIGHT - self.grid.grid_area_height))
-                    pygame.draw.rect(screen, "#2e3f46", (0, self.grid.grid_area_height, c.SCREEN_WIDTH, c.SCREEN_HEIGHT - self.grid.grid_area_height), 4)
-                    pygame.draw.rect(screen, "#445d68", (0, 0, self.grid.side_margin, self.grid.grid_area_height))
-                    pygame.draw.rect(screen, "#2e3f46", (0, 0, self.grid.side_margin, self.grid.grid_area_height), 4)
-
-                    energy_text = get_font(54).render(str(self.energy_amount), True, "white")
-                    screen.blit(energy_text, (125, self.grid.grid_area_height + 25))
-                    screen.blit(self.assets.icons["energy"], (25, self.grid.grid_area_height + 20))
-
-                    research_text = get_font(54).render("0", True, "white")
-                    screen.blit(research_text, (125, self.grid.grid_area_height + 125))
-                    screen.blit(self.assets.icons["research"], (25, self.grid.grid_area_height + 120))
-
-                    
-                    for element in self.element_group:
-                        if getattr(element, "selected", False):
-                            self.selected_element_obj = element
-                            break
-
-                    if self.selected_element_obj:
-                        text_rect = pygame.Rect(self.PANEL_X + 25, self.PANEL_Y + 160, 250, self.grid.grid_area_height - 180)
-
-                        pygame.draw.rect(screen, "#405761", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), border_radius=15)
-                        pygame.draw.rect(screen, "#2e3f46", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), 4, border_radius=15)
-
-                        self.upgrade_exit_button.changeColor(mouse_pos)
-                        self.upgrade_exit_button.update(screen)
-
-                        title_text = get_font(28).render(f"{self.selected_element_obj.name.capitalize()}", True, "white")
-                        title_text_rect = title_text.get_rect(center=(self.PANEL_X + 150, 45))
-                        screen.blit(title_text, title_text_rect)
-
-                        data = ELEMENT_DATA.get(self.selected_element_obj.name, {})
-
-                        self.upgrade_button.set_text(f"Upgrade for {self.selected_element_obj.upgrade_cost}")
-
-                        self.upgrade_button.changeColor(mouse_pos)
-                        self.upgrade_button.update(screen)
-
-                        if data['damage_element'] == True:
-                            info_lines = [
-                                f"Level: {self.selected_element_obj.upgrade_level}",
-                                f"HP: {data['hp']}",
-                                f"Damage: {self.selected_element_obj.damage}",
-                                f"Cooldown: {data['cooldown'] / 1000:.1f}s",
-                                f"State: {data['state']}",
-                                data['desc']
-                            ]
-                        elif data['healing_element'] == True:
-                            info_lines = [
-                                f"Level: {self.selected_element_obj.upgrade_level}",
-                                f"HP: {data['hp']}",
-                                f"Healing: {data['healing']}",
-                                f"Cooldown: {data['cooldown'] / 1000:.1f}s",
-                                f"State: {data['state']}",
-                                data['desc']
-                            ]
-                        elif data['energy_element'] == True:
-                            info_lines = [
-                                f"Level: {self.selected_element_obj.upgrade_level}",
-                                f"HP: {data['hp']}",
-                                f"Energy: {data['energy_generation']}",
-                                f"Cooldown: {data['cooldown'] / 1000:.1f}s",
-                                f"State: {data['state']}",
-                                data['desc']
-                            ]
-
-                        y_offset = text_rect.top
-                        for line in info_lines:
-                            draw_centered_wrapped_text(
-                                screen,
-                                line,
-                                get_font(24),
-                                "white",
-                                pygame.Rect(text_rect.left, y_offset, text_rect.width, 60),
-                                self.LINE_HEIGHT
-                            )
-                            y_offset += 40
-
-                    elif self.selected_element_button is not None:
-
-                        pygame.draw.rect(screen, "#405761", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), border_radius=15)
-                        pygame.draw.rect(screen, "#2e3f46", (self.PANEL_X, self.PANEL_Y, 300, self.grid.grid_area_height - 50), 4, border_radius=15)
-
-                        title_text = get_font(28).render(f"{self.selected_element_button.capitalize()}", True, "white")
-                        title_text_rect = title_text.get_rect(center=(self.PANEL_X + 150, 45))
-                        screen.blit(title_text, title_text_rect)
-
-                        data = ELEMENT_DATA.get(self.selected_element_button, {})
-
-                        self.buy_exit_button.changeColor(mouse_pos)
-                        self.buy_exit_button.update(screen)
-
-                        buy_cost = data.get("buy_cost", 0)
-
-                        self.buy_button.set_text(f"Buy for {buy_cost}")
-
-                        self.buy_button.changeColor(mouse_pos)
-                        self.buy_button.update(screen)
-
-                        text_rect = pygame.Rect(self.PANEL_X + 25, self.PANEL_Y + 160, 250, self.grid.grid_area_height - 200)
-
-                        if data['damage_element'] == True:
-                            info_lines = [
-                                f"HP: {data['hp']}",
-                                f"Damage: {data['damage']}",
-                                f"Cooldown: {data['cooldown'] / 1000:.1f}s",
-                                f"State: {data['state']}",
-                                data['desc']
-                            ]
-                        elif data['healing_element'] == True:
-                            info_lines = [
-                                f"HP: {data['hp']}",
-                                f"Healing: {data['healing']}",
-                                f"Cooldown: {data['cooldown'] / 1000:.1f}s",
-                                f"State: {data['state']}",
-                                data['desc']
-                            ]
-                        elif data['energy_element'] == True:
-                            info_lines = [
-                                f"HP: {data['hp']}",
-                                f"Energy: {data['energy_generation']}",
-                                f"Cooldown: {data['cooldown'] / 1000:.1f}s",
-                                f"State: {data['state']}",
-                                data['desc']
-                            ]
-
-                        y_offset = text_rect.top
-                        for line in info_lines:
-                            draw_centered_wrapped_text(
-                                screen,
-                                line,
-                                get_font(24),
-                                "white",
-                                pygame.Rect(text_rect.left, y_offset, text_rect.width, 60),
-                                self.LINE_HEIGHT
-                            )
-                            y_offset += 40
-
-                    for energy_tile_coordinate in self.energy_tiles:
-                        energy_tile_x, energy_tile_y = energy_tile_coordinate
-                        screen.blit(self.assets.tiles["energy_tile"], self.grid.get_cell_top_left_corner(energy_tile_x, energy_tile_y))
-
-                    for button in [self.hydrogen_select, self.oxygen_select, self.silicon_select]:
-                        button.update(screen)
-
-                    self.base.draw(screen)
-
-                    if not self.antiparticle_group:
-                        self.start_wave.changeColor(mouse_pos)
-                        self.start_wave.update(screen)
-
-                    self.draw_tutorial_prompt()
-
-                    # Wave indicator
-                    wave_text = get_font(32).render(f"Wave {self.current_wave}/{self.total_waves}", True, "white")
-                    wave_rect = wave_text.get_rect(center=(c.SCREEN_WIDTH // 1.1, 1020))
-                    screen.blit(wave_text, wave_rect)
-
-                    # End of rendering
-
-                    if not self.paused:
-                        if self.selected_element:
-                            if self.selected_element == "hydrogen":
-                                sprite = self.assets.elements["hydrogen"]["grid"]
-                            elif self.selected_element == "oxygen":
-                                sprite = self.assets.elements["oxygen"]["grid"]
-                            elif self.selected_element == "silicon":
-                                sprite = self.assets.elements["silicon"]["grid"]
-                            else:
-                                sprite = self.assets.elements["hydrogen"]["grid"]
-
-                            rect = sprite.get_rect(center=mouse_pos)
-                            sprite_copy = sprite.copy()
-                            sprite_copy.set_alpha(150)
-                            screen.blit(sprite_copy, rect)
-
-                        for element in self.element_group:
-                            element.draw(screen)
-        
-                        self.antiparticle_group.update(dt, self.element_group, self.base)
-                        self.antiparticle_group.draw(screen)
-
-                        for ap in self.antiparticle_group:
-                            if hasattr(ap, "draw_healthbar"):
-                                ap.draw_healthbar(screen)
-
-                        self.element_group.update(self.antiparticle_group, self)
-
-                        current_time = pygame.time.get_ticks() / 1000
-
-                        for spawn in self.spawn_queue[:]:
-                            spawn_time, waypoints, type_name, sprite = spawn
-                            if current_time >= spawn_time:
-                                ap = Antiparticle(waypoints, type_name, sprite)
-                                self.antiparticle_group.add(ap)
-                                self.spawn_queue.remove(spawn)
-
-                        if self.current_wave == 6 and len(self.antiparticle_group) == 0:
-                            self.win_game()
-
-                    if self.paused:
-                        if self.lose:
-                            screen.blit(self.pause_overlay, (0, 0))
-
-                            pygame.draw.rect(screen, "#2e3f46", self.box_rect, border_radius=15)
-                            pygame.draw.rect(screen, "#445d68", self.box_rect, 4, border_radius=15)
-
-                            title = get_font(50).render("You lost!", True, "white")
-                            title_rect = title.get_rect(center=(self.box_rect.centerx, self.box_rect.top + 100))
-                            screen.blit(title, title_rect)
-                        elif self.win:
-                            screen.blit(self.pause_overlay, (0, 0))
-
-                            pygame.draw.rect(screen, "#2e3f46", self.box_rect, border_radius=15)
-                            pygame.draw.rect(screen, "#445d68", self.box_rect, 4, border_radius=15)
-
-                            title = get_font(50).render("You finished the tutorial!", True, "white")
-                            title_rect = title.get_rect(center=(self.box_rect.centerx, self.box_rect.top + 100))
-                            screen.blit(title, title_rect)
-                        else:
-                            screen.blit(self.pause_overlay, (0, 0))
-
-                            pygame.draw.rect(screen, "#2e3f46", self.box_rect, border_radius=15)
-                            pygame.draw.rect(screen, "#445d68", self.box_rect, 4, border_radius=15)
-
-                            title = get_font(36).render("Leave the game?", True, "white")
-                            title_rect = title.get_rect(center=(self.box_rect.centerx, self.box_rect.top + 50))
-                            screen.blit(title, title_rect)
-
-                            text = get_font(24).render("All progress will be lost.", True, "white")
-                            text_rect = text.get_rect(center=(self.box_rect.centerx, self.box_rect.centery - 10))
-                            screen.blit(text, text_rect)
-
-                            self.yes_button.changeColor(mouse_pos)
-                            self.cancel_button.changeColor(mouse_pos)
-
-                            self.yes_button.update(screen)
-                            self.cancel_button.update(screen)
-
-                #endregion
-
-                for event in events:
-                    if event.type == pygame.QUIT:
-                        self.running = False
-
-                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        if self.state == c.GAMEPLAY:
-                            if self.hydrogen_select.checkForInput(mouse_pos):
-                                self.deselect_all_elements()
-                                self.selected_element_button = "hydrogen"
-                                self.selected_element = None
-                                self.selected_element_obj = None
-                                continue
-
-                            if self.oxygen_select.checkForInput(mouse_pos):
-                                self.deselect_all_elements()
-                                self.selected_element_button = "oxygen"
-                                self.selected_element = None
-                                self.selected_element_obj = None
-                                continue
-
-                            if self.silicon_select.checkForInput(mouse_pos):
-                                self.deselect_all_elements()
-                                self.selected_element_button = "silicon"
-                                self.selected_element = None
-                                self.selected_element_obj = None
-                                continue
-
-                            clicked_on_element = False
-                            for element in self.element_group:
-                                if element.rect.collidepoint(mouse_pos):
-                                    for e in self.element_group:
-                                        e.selected = False
-                                    element.selected = True
-
-                                    self.selected_element_button = None
-                                    self.selected_element = None
-
-                                    clicked_on_element = True
-                                    break
-
-                            if clicked_on_element:
-                                continue
-
-                            if self.selected_element_obj is not None:
-                                if self.upgrade_exit_button.checkForInput(mouse_pos):
-                                    self.deselect_all_elements()
-                                    self.selected_element_obj = None
-                                    continue
-
-                                if self.upgrade_button.checkForInput(mouse_pos):
-                                    if self.energy_amount >= self.selected_element_obj.upgrade_cost:
-                                        self.selected_element_obj.upgrade()
-                                        self.energy_amount -= self.selected_element_obj.upgrade_cost
-                                    elif self.energy_amount < self.selected_element_obj.upgrade_cost:
-                                        self.active_error = GameError("Not enough energy!")
-                                        self.error_start_time = pygame.time.get_ticks()
-                                    continue
-
-                            elif self.selected_element_button is not None:
-                                if self.buy_exit_button.checkForInput(mouse_pos):
-                                    self.selected_element_button = None
-                                    continue
-
-                                if self.buy_button.checkForInput(mouse_pos):
-                                    element_name = self.selected_element_button
-                                    cost = ELEMENT_DATA[element_name]["buy_cost"]
-
-                                    if self.energy_amount >= cost:
-                                        self.energy_amount -= cost
-                                        self.selected_element = element_name 
-                                    else:
-                                        self.active_error = GameError("Not enough energy!")
-                                        self.error_start_time = pygame.time.get_ticks()
-                                    continue
-
-                            if self.selected_element:
-                                cell = self.grid.get_cell_at_pos(mouse_pos)
-                                if cell and cell not in self.occupied_cells:
-
-                                    col, row = cell
-                                    cx, cy = self.grid.get_cell_center(col, row)
-
-                                    sprite = {
-                                        "hydrogen": self.assets.elements["hydrogen"]["grid"],
-                                        "oxygen": self.assets.elements["oxygen"]["grid"],
-                                        "silicon": self.assets.elements["silicon"]["grid"],
-                                    }.get(self.selected_element, self.assets.elements["hydrogen"]["grid"])
-
-                                    can_place = (
-                                        (cell in self.energy_tiles and self.selected_element == "silicon") or
-                                        (cell not in self.energy_tiles and self.selected_element != "silicon")
-                                    )
-
-                                    if can_place:
-                                        new_element = Element(sprite, (cx, cy), self.selected_element, self, cell)
-
-                                        self.element_group.add(new_element)
-                                        self.occupied_cells.append(cell)
-                                        self.selected_element = None
-                                    else:
-                                        self.active_error = GameError("Can't place here!")
-                                        self.error_start_time = pygame.time.get_ticks()
-
-                                continue
-
-                            self.deselect_all_elements()
-
-                            if self.start_wave.checkForInput(mouse_pos) and not self.antiparticle_group:
-                                self.spawn_wave()
-
-                        if self.state == c.GAMEPLAY and self.paused:
-                            if self.yes_button.checkForInput(mouse_pos):
-                                self.reset_level()
-                                self.state = c.MAIN_MENU
-                                self.paused = False
-
-                                continue
-
-                            if self.cancel_button.checkForInput(mouse_pos):
-                                self.paused = False
-                                continue
-
-                            continue
-
-
-                        for button in buttons: 
-                            if button.checkForInput(mouse_pos): state_manager.handle_button(self, button)
-                    
-                    if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_ESCAPE and self.state == c.GAMEPLAY and self.pending_state is None:
-                            self.paused = not self.paused
-
-                    if self.state == c.LOGIN or self.state == c.SIGNUP:
-                        self.username_input.handle_event(event)
-                        self.password_input.handle_event(event)  
-                
+                    self.gameplay.update(dt, self.antiparticle_group, self.element_group, self.base)
+                    self.render_gameplay(mouse_pos)
                 pygame.display.update()
 
                 await asyncio.sleep(0)
@@ -654,94 +274,40 @@ class MainLoop:
                 self.connection.commit()
                 self.connection.close()
 
-    def draw_tutorial_prompt(self):
-        if self.tutorial_prompt:
-            font = get_font(28)
-            text_surface = font.render(self.tutorial_prompt, True, "white")
-            rect = text_surface.get_rect(center=(c.SCREEN_WIDTH // 2, c.SCREEN_HEIGHT - 50))
-            bg_rect = rect.inflate(20, 20)
-            pygame.draw.rect(screen, (0, 0, 0, 180), bg_rect)
-            pygame.draw.rect(screen, "white", bg_rect, 2)
-            screen.blit(text_surface, rect)
+    def render_gameplay(self, mouse_pos):
+        self.screen.fill("#252525")
+        
+        self.grid.draw(self.screen, self.grid, self.first_lane_cells, self.assets, self.gameplay)
+        self.base.draw(self.screen)
+        self.render_elements(mouse_pos)
+        self.render_antiparticles()
+        self.hud_panel.draw(mouse_pos)
+        self.element_panel.draw(mouse_pos)
+        self.guide_panel.draw_feature_guide(mouse_pos)
+        self.pause_menu.draw(mouse_pos)
 
-    def spawn_wave(self):
-        if self.current_wave < 6:
-            self.current_wave += 1
-            current_time = pygame.time.get_ticks() / 1000
+    def render_elements(self, mouse_pos):
+        if not self.paused and self.selected_element:
+            sprite = self.assets.elements[self.selected_element]["grid"]
+            rect = sprite.get_rect(center=mouse_pos)
+            sprite_copy = sprite.copy()
+            sprite_copy.set_alpha(150)
 
-            wave_data = []
+            range = ELEMENT_DATA.get(self.selected_element, {}).get("range", 150)
+            range_image = pygame.Surface((range * 2, range * 2), pygame.SRCALPHA)
+            pygame.draw.circle(range_image, (180, 180, 180, 100), (range, range), range)
+            range_rect = range_image.get_rect(center=rect.center)
+            self.screen.blit(range_image, range_rect)
+            self.screen.blit(sprite_copy, rect)
 
-            if self.current_wave == 1:
-                wave_data = [("down_antiquark", first_lane_waypoints, 25, 2.5)] * 2
-                self.energy_amount += 12
-            elif self.current_wave == 2:
-                wave_data = [("down_antiquark", first_lane_waypoints, 30, 2.5)] * 3
-                self.energy_amount += 30
-            elif self.current_wave == 3:
-                wave_data = [("down_antiquark", first_lane_waypoints, 35, 3.0)] * 4
-                self.energy_amount += 100
-            elif self.current_wave == 4:
-                wave_data = [("up_antiquark", first_lane_waypoints, 50, 2.0)] * 2
-                self.energy_amount += 10
-            elif self.current_wave == 5:
-                wave_data = [("down_antiquark", first_lane_waypoints, 25, 3.0)] * 12
-            elif self.current_wave == 6:
-                wave_data = [("top_antiquark", first_lane_waypoints, 40, 2.5)]
+        for element in self.element_group:
+            element.draw(self.screen)
 
-            for i, (name, waypoints, health, speed) in enumerate(wave_data):
-                sprite = self.sprite_map[name]
-                self.spawn_queue.append((
-                    current_time + i * 0.5, # 0.5 is time interval new enemies are spawned at
-                    waypoints,
-                    name,      
-                    sprite
-                ))
-
-            self.tutorial_prompt = TUTORIAL_STEPS.get(self.current_wave, "")
+    def render_antiparticles(self):
+        for ap in self.antiparticle_group:
+            ap.draw(self.screen)
 
     def deselect_all_elements(self):
         for element in self.element_group:
             element.selected = False
-
-    def reset_level(self):
-        self.antiparticle_group.empty()
-        self.element_group.empty()
-        self.spawn_queue.clear()
-
-        self.base.health = self.base.max_health
-
-        self.occupied_cells = [(12,2), (13,2), (12,3), (13,3)]
-        self.selected_element = None
         self.selected_element_obj = None
-        self.selected_element_button = None
-
-        self.energy_amount = 20
-        self.current_wave = 0
-
-        self.tutorial_prompt = TUTORIAL_STEPS.get(0, "")
-
-    def win_game(self):
-        if self.pending_state is not None:
-            return
-        
-        database_manager.insert_user_level_progress(self, self.user_id[0])
-
-        self.win = True
-        self.paused = True
-
-        self.active_error = GameError("")
-        self.error_start_time = pygame.time.get_ticks()
-
-        self.pending_state = c.MAIN_MENU
-
-    def lose_game(self):
-        if self.pending_state is not None:
-            return
-
-        self.lose = True
-        self.paused = True
-
-        self.active_error = GameError("")
-        self.error_start_time = pygame.time.get_ticks()
-
-        self.pending_state = c.MAIN_MENU

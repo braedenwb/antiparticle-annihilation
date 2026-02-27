@@ -8,9 +8,8 @@ Created: 2025-11-28
 """
 
 import pygame
-from pygame.math import Vector2
 
-import classes.constants as c
+from pygame.math import Vector2
 from data.antiparticle_data import ANTIPARTICLE_DATA
 
 class Antiparticle(pygame.sprite.Sprite):
@@ -39,9 +38,41 @@ class Antiparticle(pygame.sprite.Sprite):
         self.waypoints = waypoints
         self.target_waypoint = 1
 
+        self.last_update_time = pygame.time.get_ticks()
+        self.frame_delay = 0 # Milliseconds between frames (e.g., 200ms = 5 FPS)
+        self.animation_index = 0
+
+        if self.type_name == "top_antiquark":
+            self.sprites = []
+            for i in range(8):
+                self.sprites.append(pygame.image.load(f"assets/antiparticles/animations/{self.type_name}/{self.type_name}_idle_0{i+1}.png").convert_alpha())
+            self.current_sprite = 0
+            self.sprite = self.sprites[self.current_sprite]
+            self.frame_delay = 100
+
     def update(self, dt, element_group, base):
         self.move(dt)
         self.try_attack(element_group, base)
+
+    def draw(self, surface):
+        if self.type_name == "top_antiquark":
+            current_time = pygame.time.get_ticks()
+            if current_time - self.last_update_time >= self.frame_delay:
+                self.last_update_time = current_time
+                self.current_sprite += 1
+
+                if self.current_sprite >= len(self.sprites):
+                    self.current_sprite = 0
+
+                self.sprite = self.sprites[self.current_sprite]
+
+            self.sprite = pygame.transform.scale(self.sprite, (75, 75))
+
+            surface.blit(self.sprite, self.rect)
+        else:
+            surface.blit(self.image, self.rect)
+
+        self.draw_healthbar(surface)
 
     def try_attack(self, element_group, base):
         now = pygame.time.get_ticks()

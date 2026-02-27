@@ -10,8 +10,9 @@ Created: 2025-11-28
 
 import pygame
 import math
-from data.element_data import ELEMENT_DATA
+
 from pygame.time import get_ticks
+from data.element_data import ELEMENT_DATA
 
 def get_font(size):
     return pygame.font.Font("assets/fonts/Orbitron-Medium.ttf", size)
@@ -25,9 +26,37 @@ class Element(pygame.sprite.Sprite):
         super().__init__()
 
         self.name = name
+        self.compound = None
 
         self.game = game
         self.cell = cell
+
+        self.last_update_time = pygame.time.get_ticks()
+        self.frame_delay = 0 # Milliseconds between frames (e.g., 200ms = 5 FPS)
+        self.animation_index = 0
+
+
+        if self.name == "hydrogen":
+            self.sprites = []
+            for i in range(24):
+                self.sprites.append(pygame.image.load(f"assets/elements/animations/{self.name}/{self.name}_idle_0{i+1}.png").convert_alpha())
+            self.current_sprite = 0
+            self.sprite = self.sprites[self.current_sprite]
+            self.frame_delay = 50
+        elif self.name == "oxygen":
+            self.sprites = []
+            for i in range(9):
+                self.sprites.append(pygame.image.load(f"assets/elements/animations/{self.name}/{self.name}_idle_0{i+1}.png").convert_alpha())
+            self.current_sprite = 0
+            self.sprite = self.sprites[self.current_sprite]
+            self.frame_delay = 50
+        elif self.name == "silicon":
+            self.sprites = []
+            for i in range(8):
+                self.sprites.append(pygame.image.load(f"assets/elements/animations/{self.name}/{self.name}_idle_0{i+1}.png").convert_alpha())
+            self.current_sprite = 0
+            self.sprite = self.sprites[self.current_sprite]
+            self.frame_delay = 100
 
         data = ELEMENT_DATA.get(name, {})
 
@@ -68,7 +97,10 @@ class Element(pygame.sprite.Sprite):
         pygame.draw.circle(self.range_image, (180, 180, 180, 100), (self.range, self.range), self.range)
         self.range_rect = self.range_image.get_rect(center=self.rect.center)
 
-    def update(self, antiparticle_group, game):
+    def update(self, game, antiparticle_group):
+        if self.compound:
+            return
+
         self.pos = self.rect.center
         self.range_rect.center = self.rect.center
 
@@ -76,7 +108,8 @@ class Element(pygame.sprite.Sprite):
 
         if self.is_energy:
             if now - self._last_action >= self.cooldown:
-                game.energy_amount += self.energy_generation
+                game.gameplay.energy_amount += self.energy_generation
+                
                 self._last_action = now
             return 
 
@@ -90,7 +123,6 @@ class Element(pygame.sprite.Sprite):
             self.pick_target(antiparticle_group)
             if self.target:
                 self.try_fire()
-
 
     def pick_target(self, antiparticle_group):
         closest = None
@@ -147,16 +179,33 @@ class Element(pygame.sprite.Sprite):
         
 
     def draw(self, surface):
-        surface.blit(self.image, self.rect)
+        if self.name == "hydrogen" or self.name == "oxygen" or self.name == "silicon":
+            current_time = pygame.time.get_ticks()
+            if current_time - self.last_update_time >= self.frame_delay:
+                self.last_update_time = current_time
+                self.current_sprite += 1
+
+                if self.current_sprite >= len(self.sprites):
+                    self.current_sprite = 0
+                
+                self.sprite = self.sprites[self.current_sprite]
+
+
+            self.sprite = pygame.transform.scale(self.sprite, (75, 75))
+            
+            surface.blit(self.sprite, self.rect)
+        else:
+            surface.blit(self.image, self.rect)
+
         self.draw_healthbar(surface)
         self.draw_subscript(surface)
         if self.selected:
             surface.blit(self.range_image, self.range_rect)
 
     def draw_healthbar(self, surface):
-        bar_width = self.rect.width
+        bar_width = self.rect.width - 20
         bar_height = 6
-        x = self.rect.left
+        x = self.rect.left + 10
         y = self.rect.top - 10
 
         ratio = max(self.health / self.max_health, 0)
@@ -193,11 +242,18 @@ class Element(pygame.sprite.Sprite):
                     )
 
     def take_damage(self, amount):
+        if self.compound:
+            self.compound.take_damage(amount)
+            return
+
         self.health -= amount
         if self.health <= 0:
             self.die()
 
     def die(self):
+        if self.compound:
+            return
+
         self.game.occupied_cells.remove(self.cell)
         self.kill()
 

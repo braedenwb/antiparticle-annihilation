@@ -21,9 +21,9 @@ ANTIPARTICLE_DATA = {
     },
     "top_antiquark": {
         "health": 1000,         # Very High
-        "speed": .75,          # Very Low
-        "damage": 4,
-        "attack_range": 200,
+        "speed": .75,          # Very Low   
+        "damage": 2,
+        "attack_range": 100,
         "attack_cooldown": 1000,
         "description": "A massive particle, moves very slowly, but has a TON of HP.",
         "hp_category": "Very High",
